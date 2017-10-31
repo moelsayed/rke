@@ -1,56 +1,29 @@
 package services
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
+	"github.com/rancher/rke/docker"
 	"github.com/rancher/rke/hosts"
 )
 
 type Kubelet struct {
-	Version string `yaml:"version"`
-	Image   string `yaml:"image"`
-	ClusterDomain	string `yaml:"cluster_domain"`
+	Version             string `yaml:"version"`
+	Image               string `yaml:"image"`
+	ClusterDomain       string `yaml:"cluster_domain"`
 	InfraContainerImage string `yaml:"infra_container_image"`
 }
 
 func runKubelet(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, isMaster bool) error {
-	isRunning, err := IsContainerRunning(host, KubeletContainerName)
-	if err != nil {
-		return err
-	}
-	if isRunning {
-		logrus.Infof("[WorkerPlane] Kubelet is already running on host [%s]", host.Hostname)
-		return nil
-	}
-	err = runKubeletContainer(host, masterHost, kubeletService, isMaster)
+	imageCfg, hostCfg := buildKubeletConfig(host, masterHost, kubeletService, isMaster)
+	err := docker.DoRunContainer(imageCfg, hostCfg, KubeletContainerName, &host, WorkerRole)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func runKubeletContainer(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, isMaster bool) error {
-	logrus.Debugf("[WorkerPlane] Pulling Kubelet Image on host [%s]", host.Hostname)
-	err := PullImage(host, kubeletService.Image+":"+kubeletService.Version)
-	if err != nil {
-		return err
-	}
-	logrus.Infof("[WorkerPlane] Successfully pulled Kubelet image on host [%s]", host.Hostname)
-
-	err = doRunKubelet(host, masterHost, kubeletService, isMaster)
-	if err != nil {
-		return err
-	}
-	logrus.Infof("[WorkerPlane] Successfully ran Kubelet container on host [%s]", host.Hostname)
-	return nil
-}
-
-func doRunKubelet(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, isMaster bool) error {
+func buildKubeletConfig(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, isMaster bool) (*container.Config, *container.HostConfig) {
 	imageCfg := &container.Config{
 		Image: kubeletService.Image + ":" + kubeletService.Version,
 		Cmd: []string{"/hyperkube",
@@ -101,14 +74,5 @@ func doRunKubelet(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet
 			},
 		},
 	}
-	resp, err := host.DClient.ContainerCreate(context.Background(), imageCfg, hostCfg, nil, KubeletContainerName)
-	if err != nil {
-		return fmt.Errorf("Failed to create Kubelet container on host [%s]: %v", host.Hostname, err)
-	}
-
-	if err := host.DClient.ContainerStart(context.Background(), resp.ID, types.ContainerStartOptions{}); err != nil {
-		return fmt.Errorf("Failed to start Kubelet container on host [%s]: %v", host.Hostname, err)
-	}
-	logrus.Debugf("[WorkerPlane] Successfully started Kubelet container: %s", resp.ID)
-	return nil
+	return imageCfg, hostCfg
 }

@@ -1,12 +1,8 @@
 package services
 
 import (
-	"context"
-	"fmt"
-
-	"github.com/Sirupsen/logrus"
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
+	"github.com/rancher/rke/docker"
 	"github.com/rancher/rke/hosts"
 )
 
@@ -16,38 +12,15 @@ type Kubeproxy struct {
 }
 
 func runKubeproxy(host hosts.Host, masterHost hosts.Host, kubeproxyService Kubeproxy) error {
-	isRunning, err := IsContainerRunning(host, KubeproxyContainerName)
-	if err != nil {
-		return err
-	}
-	if isRunning {
-		logrus.Infof("[WorkerPlane] Kubeproxy is already running on host [%s]", host.Hostname)
-		return nil
-	}
-	err = runKubeproxyContainer(host, masterHost, kubeproxyService)
+	imageCfg, hostCfg := buildKubeproxyConfig(host, masterHost, kubeproxyService)
+	err := docker.DoRunContainer(imageCfg, hostCfg, KubeproxyContainerName, &host, WorkerRole)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func runKubeproxyContainer(host hosts.Host, masterHost hosts.Host, kubeproxyService Kubeproxy) error {
-	logrus.Debugf("[WorkerPlane] Pulling KubeProxy Image on host [%s]", host.Hostname)
-	err := PullImage(host, kubeproxyService.Image+":"+kubeproxyService.Version)
-	if err != nil {
-		return err
-	}
-	logrus.Infof("[WorkerPlane] Successfully pulled KubeProxy image on host [%s]", host.Hostname)
-
-	err = doRunKubeProxy(host, masterHost, kubeproxyService)
-	if err != nil {
-		return err
-	}
-	logrus.Infof("[WorkerPlane] Successfully ran KubeProxy container on host [%s]", host.Hostname)
-	return nil
-}
-
-func doRunKubeProxy(host hosts.Host, masterHost hosts.Host, kubeproxyService Kubeproxy) error {
+func buildKubeproxyConfig(host hosts.Host, masterHost hosts.Host, kubeproxyService Kubeproxy) (*container.Config, *container.HostConfig) {
 	imageCfg := &container.Config{
 		Image: kubeproxyService.Image + ":" + kubeproxyService.Version,
 		Cmd: []string{"/hyperkube",
@@ -61,13 +34,6 @@ func doRunKubeProxy(host hosts.Host, masterHost hosts.Host, kubeproxyService Kub
 		RestartPolicy: container.RestartPolicy{Name: "always"},
 		Privileged:    true,
 	}
-	resp, err := host.DClient.ContainerCreate(context.Background(), imageCfg, hostCfg, nil, KubeproxyContainerName)
-	if err != nil {
-		return fmt.Errorf("Failed to create KubeProxy container on host [%s]: %v", host.Hostname, err)
-	}
-	if err := host.DClient.ContainerStart(context.Background(), resp.ID, types.ContainerStartOptions{}); err != nil {
-		return fmt.Errorf("Failed to start KubeProxy container on host [%s]: %v", host.Hostname, err)
-	}
-	logrus.Debugf("[WorkerPlane] Successfully started KubeProxy container: %s", resp.ID)
-	return nil
+
+	return imageCfg, hostCfg
 }

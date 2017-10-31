@@ -6,7 +6,7 @@ import (
 )
 
 func RunWorkerPlane(masterHosts []hosts.Host, workerHosts []hosts.Host, workerServices Services) error {
-	logrus.Infof("[WorkerPlane] Building up Worker Plane..")
+	logrus.Infof("[%s] Building up Worker Plane..", WorkerRole)
 	for _, host := range masterHosts {
 		// only one master for now
 		err := runKubelet(host, masterHosts[0], workerServices.Kubelet, true)
@@ -30,5 +30,6 @@ func RunWorkerPlane(masterHosts []hosts.Host, workerHosts []hosts.Host, workerSe
 			return err
 		}
 	}
+	logrus.Infof("[%s] Successfully started Worker Plane..", WorkerRole)
 	return nil
 }

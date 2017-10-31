@@ -110,7 +110,7 @@ func parseClusterFile(clusterFile string) (*services.Container, []hosts.Host, er
 			return nil, nil, fmt.Errorf("Role for host (%d) is not provided", i+1)
 		}
 		for _, role := range host.Role {
-			if role != services.ETCDRole && role != services.MasterRole && role != services.WorkerRole {
+			if role != services.ETCDRole && role != services.ControlRole && role != services.WorkerRole {
 				return nil, nil, fmt.Errorf("Role [%s] for host (%d) is not recognized", role, i+1)
 			}
 		}
