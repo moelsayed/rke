@@ -10,6 +10,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/rancher/rke/hosts"
+	"github.com/rancher/rke/pki"
 	"github.com/rancher/rke/services"
 	"github.com/urfave/cli"
 )
@@ -21,6 +22,10 @@ func ClusterCommand() cli.Command {
 			Usage:  "Specify an alternate cluster YAML file (default: cluster.yml)",
 			Value:  "cluster.yml",
 			EnvVar: "CLUSTER_FILE",
+		},
+		cli.BoolFlag{
+			Name:  "force-crts",
+			Usage: "Force rotating the Kubernetes components certificates",
 		},
 	}
 	return cli.Command{
@@ -59,6 +64,15 @@ func clusterUp(ctx *cli.Context) error {
 		}
 	}
 	etcdHosts, cpHosts, workerHosts := hosts.DivideHosts(k8shosts)
+	KubernetesServiceIP, err := services.GetKubernetesServiceIp(servicesLookup.Services.KubeAPI.ServiceClusterIPRange)
+	clusterDomain := servicesLookup.Services.Kubelet.ClusterDomain
+	if err != nil {
+		return err
+	}
+	err = pki.StartCertificatesGeneration(ctx, cpHosts, workerHosts, clusterDomain, KubernetesServiceIP)
+	if err != nil {
+		return fmt.Errorf("[Certificates] Failed to generate Kubernetes certificates: %v", err)
+	}
 	err = services.RunEtcdPlane(etcdHosts, servicesLookup.Services.Etcd)
 	if err != nil {
 		return fmt.Errorf("[Etcd] Failed to bring up Etcd Plane: %v", err)

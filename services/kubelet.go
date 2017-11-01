@@ -5,6 +5,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/rancher/rke/docker"
 	"github.com/rancher/rke/hosts"
+	"github.com/rancher/rke/pki"
 )
 
 type Kubelet struct {
@@ -14,8 +15,8 @@ type Kubelet struct {
 	InfraContainerImage string `yaml:"infra_container_image"`
 }
 
-func runKubelet(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, isMaster bool) error {
-	imageCfg, hostCfg := buildKubeletConfig(host, masterHost, kubeletService, isMaster)
+func runKubelet(host hosts.Host, kubeletService Kubelet, isMaster bool) error {
+	imageCfg, hostCfg := buildKubeletConfig(host, kubeletService, isMaster)
 	err := docker.DoRunContainer(imageCfg, hostCfg, KubeletContainerName, &host, WorkerRole)
 	if err != nil {
 		return err
@@ -23,7 +24,7 @@ func runKubelet(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, 
 	return nil
 }
 
-func buildKubeletConfig(host hosts.Host, masterHost hosts.Host, kubeletService Kubelet, isMaster bool) (*container.Config, *container.HostConfig) {
+func buildKubeletConfig(host hosts.Host, kubeletService Kubelet, isMaster bool) (*container.Config, *container.HostConfig) {
 	imageCfg := &container.Config{
 		Image: kubeletService.Image + ":" + kubeletService.Version,
 		Cmd: []string{"/hyperkube",
@@ -43,7 +44,8 @@ func buildKubeletConfig(host hosts.Host, masterHost hosts.Host, kubeletService K
 			"--resolv-conf=/etc/resolv.conf",
 			"--allow-privileged=true",
 			"--cloud-provider=",
-			"--api-servers=http://" + masterHost.IP + ":8080/",
+			"--kubeconfig=" + pki.KubeNodeConfigPath,
+			"--require-kubeconfig=True",
 		},
 	}
 	if isMaster {
@@ -52,6 +54,7 @@ func buildKubeletConfig(host hosts.Host, masterHost hosts.Host, kubeletService K
 	}
 	hostCfg := &container.HostConfig{
 		Binds: []string{
+			"/etc/kubernetes:/etc/kubernetes",
 			"/etc/cni:/etc/cni:ro",
 			"/opt/cni:/opt/cni:ro",
 			"/etc/resolv.conf:/etc/resolv.conf",

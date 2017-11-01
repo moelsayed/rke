@@ -5,27 +5,27 @@ import (
 	"github.com/rancher/rke/hosts"
 )
 
-func RunWorkerPlane(masterHosts []hosts.Host, workerHosts []hosts.Host, workerServices Services) error {
+func RunWorkerPlane(controlHosts []hosts.Host, workerHosts []hosts.Host, workerServices Services) error {
 	logrus.Infof("[%s] Building up Worker Plane..", WorkerRole)
-	for _, host := range masterHosts {
+	for _, host := range controlHosts {
 		// only one master for now
-		err := runKubelet(host, masterHosts[0], workerServices.Kubelet, true)
+		err := runKubelet(host, workerServices.Kubelet, true)
 		if err != nil {
 			return err
 		}
-		err = runKubeproxy(host, masterHosts[0], workerServices.Kubeproxy)
+		err = runKubeproxy(host, workerServices.Kubeproxy)
 		if err != nil {
 			return err
 		}
 	}
 	for _, host := range workerHosts {
 		// run kubelet
-		err := runKubelet(host, masterHosts[0], workerServices.Kubelet, false)
+		err := runKubelet(host, workerServices.Kubelet, false)
 		if err != nil {
 			return err
 		}
 		// run kubeproxy
-		err = runKubeproxy(host, masterHosts[0], workerServices.Kubeproxy)
+		err = runKubeproxy(host, workerServices.Kubeproxy)
 		if err != nil {
 			return err
 		}

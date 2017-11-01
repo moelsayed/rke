@@ -4,6 +4,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/rancher/rke/docker"
 	"github.com/rancher/rke/hosts"
+	"github.com/rancher/rke/pki"
 )
 
 type Scheduler struct {
@@ -27,9 +28,13 @@ func buildSchedulerConfig(host hosts.Host, schedulerService Scheduler) (*contain
 			"scheduler",
 			"--v=2",
 			"--address=0.0.0.0",
-			"--master=http://" + host.IP + ":8080/"},
+			"--kubeconfig=" + pki.KubeSchedulerConfigPath,
+		},
 	}
 	hostCfg := &container.HostConfig{
+		Binds: []string{
+			"/etc/kubernetes:/etc/kubernetes",
+		},
 		RestartPolicy: container.RestartPolicy{Name: "always"},
 	}
 	return imageCfg, hostCfg

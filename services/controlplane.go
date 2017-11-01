@@ -5,21 +5,21 @@ import (
 	"github.com/rancher/rke/hosts"
 )
 
-func RunControlPlane(masterHosts []hosts.Host, etcdHosts []hosts.Host, masterServices Services) error {
+func RunControlPlane(controlHosts []hosts.Host, etcdHosts []hosts.Host, controlServices Services) error {
 	logrus.Infof("[%s] Building up Controller Plane..", ControlRole)
-	for _, host := range masterHosts {
+	for _, host := range controlHosts {
 		// run kubeapi
-		err := runKubeAPI(host, etcdHosts, masterServices.KubeAPI)
+		err := runKubeAPI(host, etcdHosts, controlServices.KubeAPI)
 		if err != nil {
 			return err
 		}
 		// run kubecontroller
-		err = runKubeController(host, masterServices.KubeController)
+		err = runKubeController(host, controlServices.KubeController)
 		if err != nil {
 			return err
 		}
 		// run scheduler
-		err = runScheduler(host, masterServices.Scheduler)
+		err = runScheduler(host, controlServices.Scheduler)
 		if err != nil {
 			return err
 		}
