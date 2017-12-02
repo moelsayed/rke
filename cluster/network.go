@@ -31,7 +31,7 @@ func (c *Cluster) DeployNetworkPlugin() error {
 }
 
 func (c *Cluster) doFlannelDeploy() error {
-	pluginYaml := network.GetFlannelManifest(c.ClusterCIDR)
+	pluginYaml := network.GetFlannelManifest(c.ClusterCIDR, c.Network.Options["flannel_image"], c.Network.Options["flannel_cni_image"])
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)
 }
 
@@ -44,6 +44,9 @@ func (c *Cluster) doCalicoDeploy() error {
 	calicoConfig["clientCA"] = pki.CACertPath
 	calicoConfig["kubeCfg"] = pki.KubeNodeConfigPath
 	calicoConfig["clusterCIDR"] = c.ClusterCIDR
+	calicoConfig["cni_image"] = c.Network.Options["calico_cni_image"]
+	calicoConfig["node_image"] = c.Network.Options["calico_node_image"]
+	calicoConfig["controllers_image"] = c.Network.Options["calico_controllers_image"]
 	pluginYaml := network.GetCalicoManifest(calicoConfig)
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)
 }
@@ -55,6 +58,33 @@ func (c *Cluster) doCanalDeploy() error {
 	canalConfig["clientCA"] = pki.CACertPath
 	canalConfig["kubeCfg"] = pki.KubeNodeConfigPath
 	canalConfig["clusterCIDR"] = c.ClusterCIDR
+	canalConfig["node_image"] = c.Network.Options["canal_node_image"]
+	canalConfig["cni_image"] = c.Network.Options["canal_cni_image"]
+	canalConfig["flannel_image"] = c.Network.Options["canal_flannel_image"]
 	pluginYaml := network.GetCanalManifest(canalConfig)
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)
+}
+
+func (c *Cluster) setClusterNetworkDefaults() {
+	setDefaultIfEmpty(&c.Network.Plugin, DefaultNetworkPlugin)
+
+	if c.Network.Options == nil {
+		// don't break if the user didn't define options
+		c.Network.Options = make(map[string]string)
+	}
+	switch {
+	case c.Network.Plugin == FlannelNetworkPlugin:
+		setDefaultIfEmptyMapValue(c.Network.Options, "flannel_image", DefaultFlannelImage)
+		setDefaultIfEmptyMapValue(c.Network.Options, "flannel_cni_image", DefaultFlannelCNIImage)
+
+	case c.Network.Plugin == CalicoNetworkPlugin:
+		setDefaultIfEmptyMapValue(c.Network.Options, "calico_cni_image", DefaultCalicoCNIImage)
+		setDefaultIfEmptyMapValue(c.Network.Options, "calico_node_image", DefaultCalicoNodeImage)
+		setDefaultIfEmptyMapValue(c.Network.Options, "calico_controllers_image", DefaultCalicoControllersImage)
+
+	case c.Network.Plugin == CanalNetworkPlugin:
+		setDefaultIfEmptyMapValue(c.Network.Options, "canal_cni_image", DefaultCanalCNIImage)
+		setDefaultIfEmptyMapValue(c.Network.Options, "canal_node_image", DefaultCanalNodeImage)
+		setDefaultIfEmptyMapValue(c.Network.Options, "canal_flannel_image", DefaultCanalFlannelImage)
+	}
 }

@@ -89,7 +89,7 @@ func clusterConfig(ctx *cli.Context) error {
 		return writeConfig(&cluster, configFile, print)
 	}
 
-	// Get number of hosts
+	// Get ssh key path
 	sshKeyPath, err := getConfig(reader, "SSH Private Key Path", "~/.ssh/id_rsa")
 	if err != nil {
 		return err

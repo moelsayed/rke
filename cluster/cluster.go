@@ -33,19 +33,11 @@ type Cluster struct {
 }
 
 const (
-	X509AuthenticationProvider   = "x509"
-	DefaultClusterConfig         = "cluster.yml"
-	DefaultServiceClusterIPRange = "10.233.0.0/18"
-	DefaultClusterCIDR           = "10.233.64.0/18"
-	DefaultClusterDNSService     = "10.233.0.3"
-	DefaultClusterDomain         = "cluster.local"
-	DefaultInfraContainerImage   = "gcr.io/google_containers/pause-amd64:3.0"
-	DefaultAuthStrategy          = "x509"
-	DefaultNetworkPlugin         = "flannel"
-	StateConfigMapName           = "cluster-state"
-	UpdateStateTimeout           = 30
-	GetStateTimeout              = 30
-	KubernetesClientTimeOut      = 30
+	X509AuthenticationProvider = "x509"
+	StateConfigMapName         = "cluster-state"
+	UpdateStateTimeout         = 30
+	GetStateTimeout            = 30
+	KubernetesClientTimeOut    = 30
 )
 
 func (c *Cluster) DeployClusterPlanes() error {
@@ -119,32 +111,42 @@ func (c *Cluster) setClusterDefaults() {
 			c.Nodes[i].HostnameOverride = c.Nodes[i].Address
 		}
 	}
-	if len(c.Services.KubeAPI.ServiceClusterIPRange) == 0 {
-		c.Services.KubeAPI.ServiceClusterIPRange = DefaultServiceClusterIPRange
-	}
-	if len(c.Services.KubeController.ServiceClusterIPRange) == 0 {
-		c.Services.KubeController.ServiceClusterIPRange = DefaultServiceClusterIPRange
-	}
-	if len(c.Services.KubeController.ClusterCIDR) == 0 {
-		c.Services.KubeController.ClusterCIDR = DefaultClusterCIDR
-	}
-	if len(c.Services.Kubelet.ClusterDNSServer) == 0 {
-		c.Services.Kubelet.ClusterDNSServer = DefaultClusterDNSService
-	}
-	if len(c.Services.Kubelet.ClusterDomain) == 0 {
-		c.Services.Kubelet.ClusterDomain = DefaultClusterDomain
-	}
-	if len(c.Services.Kubelet.InfraContainerImage) == 0 {
-		c.Services.Kubelet.InfraContainerImage = DefaultInfraContainerImage
-	}
-	if len(c.Authentication.Strategy) == 0 {
-		c.Authentication.Strategy = DefaultAuthStrategy
-	}
-	if len(c.Network.Plugin) == 0 {
-		c.Network.Plugin = DefaultNetworkPlugin
-	}
+	setDefaultIfEmpty(&c.Services.KubeAPI.ServiceClusterIPRange, DefaultServiceClusterIPRange)
+	setDefaultIfEmpty(&c.Services.KubeController.ServiceClusterIPRange, DefaultServiceClusterIPRange)
+	setDefaultIfEmpty(&c.Services.KubeController.ClusterCIDR, DefaultClusterCIDR)
+	setDefaultIfEmpty(&c.Services.Kubelet.ClusterDNSServer, DefaultClusterDNSService)
+	setDefaultIfEmpty(&c.Services.Kubelet.ClusterDomain, DefaultClusterDomain)
+	setDefaultIfEmpty(&c.Services.Kubelet.InfraContainerImage, DefaultInfraContainerImage)
+	setDefaultIfEmpty(&c.Authentication.Strategy, DefaultAuthStrategy)
+
+	c.setClusterNetworkDefaults()
+	c.setClusterImageDefaults()
 }
 
+func (c *Cluster) setClusterImageDefaults() {
+	if c.RKEImages == nil {
+		// don't break if the user didn't define rke_images
+		c.RKEImages = make(map[string]string)
+	}
+	setDefaultIfEmptyMapValue(c.RKEImages, "alpine", DefaultAplineImage)
+	setDefaultIfEmptyMapValue(c.RKEImages, "nginx_proxy", DefaultNginxProxyImage)
+	setDefaultIfEmptyMapValue(c.RKEImages, "cert_downloader", DefaultCertDownloaderImage)
+	setDefaultIfEmptyMapValue(c.RKEImages, "kubedns_image", DefaultKubeDNSImage)
+	setDefaultIfEmptyMapValue(c.RKEImages, "dnsmasq_image", DefaultDNSMasqImage)
+	setDefaultIfEmptyMapValue(c.RKEImages, "kubedns_sidecar_image", DefaultKubeDNSSidecarImage)
+	setDefaultIfEmptyMapValue(c.RKEImages, "kubedns_autoscaler_image", DefaultKubeDNSAutoScalerImage)
+}
+
+func setDefaultIfEmptyMapValue(configMap map[string]string, key string, value string) {
+	if _, ok := configMap[key]; !ok {
+		configMap[key] = value
+	}
+}
+func setDefaultIfEmpty(varName *string, defaultValue string) {
+	if len(*varName) == 0 {
+		*varName = defaultValue
+	}
+}
 func GetLocalKubeConfig(configPath string) string {
 	baseDir := filepath.Dir(configPath)
 	fileName := filepath.Base(configPath)
@@ -174,7 +176,7 @@ func ReconcileCluster(kubeCluster, currentCluster *Cluster) error {
 			return fmt.Errorf("Failed to delete controlplane node %s from cluster", toDeleteHost.Address)
 		}
 		// attempting to clean up the host
-		if err := reconcileHostCleaner(toDeleteHost, key, false); err != nil {
+		if err := reconcileHostCleaner(toDeleteHost, key, false, currentCluster.RKEImages["alpine"]); err != nil {
 			logrus.Warnf("[reconcile] Couldn't clean up controlplane node [%s]: %v", toDeleteHost.Address, err)
 			continue
 		}
@@ -187,7 +189,7 @@ func ReconcileCluster(kubeCluster, currentCluster *Cluster) error {
 			return fmt.Errorf("Failed to delete worker node %s from cluster", toDeleteHost.Address)
 		}
 		// attempting to clean up the host
-		if err := reconcileHostCleaner(toDeleteHost, key, true); err != nil {
+		if err := reconcileHostCleaner(toDeleteHost, key, true, currentCluster.RKEImages["apline"]); err != nil {
 			logrus.Warnf("[reconcile] Couldn't clean up worker node [%s]: %v", toDeleteHost.Address, err)
 			continue
 		}
@@ -206,7 +208,7 @@ func ReconcileCluster(kubeCluster, currentCluster *Cluster) error {
 	return nil
 }
 
-func reconcileHostCleaner(toDeleteHost hosts.Host, key ssh.Signer, worker bool) error {
+func reconcileHostCleaner(toDeleteHost hosts.Host, key ssh.Signer, worker bool, cleanerImage string) error {
 	if err := toDeleteHost.TunnelUp(key); err != nil {
 		return fmt.Errorf("Not able to reach the host: %v", err)
 	}
@@ -217,7 +219,7 @@ func reconcileHostCleaner(toDeleteHost hosts.Host, key ssh.Signer, worker bool) 
 	if err := services.RemoveWorkerPlane(nil, []hosts.Host{toDeleteHost}); err != nil {
 		return fmt.Errorf("Couldn't remove worker plane: %v", err)
 	}
-	if err := toDeleteHost.CleanUp(); err != nil {
+	if err := toDeleteHost.CleanUp(cleanerImage); err != nil {
 		return fmt.Errorf("Not able to clean the host: %v", err)
 	}
 	return nil
