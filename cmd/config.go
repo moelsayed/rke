@@ -89,7 +89,12 @@ func clusterConfig(ctx *cli.Context) error {
 		return writeConfig(&cluster, configFile, print)
 	}
 
+<<<<<<< HEAD
 	sshKeyPath, err := getConfig(reader, "Cluster Level SSH Private Key Path", "~/.ssh/id_rsa")
+=======
+	// Get ssh key path
+	sshKeyPath, err := getConfig(reader, "SSH Private Key Path", "~/.ssh/id_rsa")
+>>>>>>> configurable_images_wip
 	if err != nil {
 		return err
 	}

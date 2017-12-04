@@ -23,21 +23,30 @@ func (c *Cluster) ClusterRemove() error {
 	}
 
 	// Clean up all hosts
-	if err := cleanUpHosts(c.ControlPlaneHosts, c.WorkerHosts, c.EtcdHosts); err != nil {
+	if err := cleanUpHosts(c.ControlPlaneHosts, c.WorkerHosts, c.EtcdHosts, c.RKEImages["alpine"]); err != nil {
 		return err
 	}
 
 	return pki.RemoveAdminConfig(c.LocalKubeConfigPath)
 }
 
+<<<<<<< HEAD
 func cleanUpHosts(cpHosts, workerHosts, etcdHosts []*hosts.Host) error {
 	allHosts := []*hosts.Host{}
+=======
+func cleanUpHosts(cpHosts, workerHosts, etcdHosts []hosts.Host, cleanerImage string) error {
+	allHosts := []hosts.Host{}
+>>>>>>> configurable_images_wip
 	allHosts = append(allHosts, cpHosts...)
 	allHosts = append(allHosts, workerHosts...)
 	allHosts = append(allHosts, etcdHosts...)
 
 	for _, host := range allHosts {
+<<<<<<< HEAD
 		if err := host.CleanUpAll(); err != nil {
+=======
+		if err := host.CleanUp(cleanerImage); err != nil {
+>>>>>>> configurable_images_wip
 			return err
 		}
 	}

@@ -27,11 +27,10 @@ const (
 	ToCleanCNIBin        = "/opt/cni"
 	ToCleanCalicoRun     = "/var/run/calico"
 	CleanerContainerName = "kube-cleaner"
-	CleanerImage         = "alpine:latest"
 )
 
-func (h *Host) CleanUpAll() error {
-	// the only supported removal for etcd dir is in rke remove
+func (h *Host) CleanUp(cleanerImage string) error {
+	logrus.Infof("[hosts] Cleaning up host [%s]", h.Address)
 	toCleanPaths := []string{
 		ToCleanEtcdDir,
 		ToCleanSSLDir,
@@ -72,7 +71,7 @@ func (h *Host) CleanUpControlHost(workerRole string) error {
 
 func (h *Host) CleanUp(toCleanPaths []string) error {
 	logrus.Infof("[hosts] Cleaning up host [%s]", h.Address)
-	imageCfg, hostCfg := buildCleanerConfig(h, toCleanPaths)
+	imageCfg, hostCfg := buildCleanerConfig(h, toCleanPaths, cleanerImage)
 	logrus.Infof("[hosts] Running cleaner container on host [%s]", h.Address)
 	if err := docker.DoRunContainer(h.DClient, imageCfg, hostCfg, CleanerContainerName, h.Address, CleanerContainerName); err != nil {
 		return err
@@ -160,10 +159,10 @@ func IsHostListChanged(currentHosts, configHosts []*Host) bool {
 	return changed
 }
 
-func buildCleanerConfig(host *Host, toCleanDirs []string) (*container.Config, *container.HostConfig) {
+func buildCleanerConfig(host *Host, toCleanDirs []string, cleanerImage string) (*container.Config, *container.HostConfig) {
 	cmd := append([]string{"rm", "-rf"}, toCleanDirs...)
 	imageCfg := &container.Config{
-		Image: CleanerImage,
+		Image: cleanerImage,
 		Cmd:   cmd,
 	}
 	bindMounts := []string{}

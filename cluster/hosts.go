@@ -59,11 +59,11 @@ func (c *Cluster) InvertIndexHosts() error {
 func (c *Cluster) SetUpHosts() error {
 	if c.Authentication.Strategy == X509AuthenticationProvider {
 		logrus.Infof("[certificates] Deploying kubernetes certificates to Cluster nodes")
-		err := pki.DeployCertificatesOnMasters(c.ControlPlaneHosts, c.Certificates)
+		err := pki.DeployCertificatesOnMasters(c.ControlPlaneHosts, c.Certificates, c.RKEImages["cert_downloader"])
 		if err != nil {
 			return err
 		}
-		err = pki.DeployCertificatesOnWorkers(c.WorkerHosts, c.Certificates)
+		err = pki.DeployCertificatesOnWorkers(c.WorkerHosts, c.Certificates, c.RKEImages["cert_downloader"])
 		if err != nil {
 			return err
 		}
