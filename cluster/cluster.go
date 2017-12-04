@@ -33,28 +33,18 @@ type Cluster struct {
 }
 
 const (
-<<<<<<< HEAD
-	X509AuthenticationProvider   = "x509"
-	DefaultClusterConfig         = "cluster.yml"
-	DefaultServiceClusterIPRange = "10.233.0.0/18"
-	DefaultClusterCIDR           = "10.233.64.0/18"
-	DefaultClusterDNSService     = "10.233.0.3"
-	DefaultClusterDomain         = "cluster.local"
-	DefaultInfraContainerImage   = "gcr.io/google_containers/pause-amd64:3.0"
-	DefaultAuthStrategy          = "x509"
-	DefaultNetworkPlugin         = "flannel"
-	DefaultClusterSSHKeyPath     = "~/.ssh/id_rsa"
-	StateConfigMapName           = "cluster-state"
-	UpdateStateTimeout           = 30
-	GetStateTimeout              = 30
-	KubernetesClientTimeOut      = 30
-=======
 	X509AuthenticationProvider = "x509"
 	StateConfigMapName         = "cluster-state"
 	UpdateStateTimeout         = 30
 	GetStateTimeout            = 30
 	KubernetesClientTimeOut    = 30
->>>>>>> configurable_images_wip
+	AplineImage                = "alpine"
+	NginxProxyImage            = "nginx_proxy"
+	CertDownloaderImage        = "cert_downloader"
+	KubeDNSImage               = "kubedns_image"
+	DNSMasqImage               = "dnsmasq_image"
+	KubeDNSSidecarImage        = "kubedns_sidecar_image"
+	KubeDNSAutoScalerImage     = "kubedns_autoscaler_image"
 )
 
 func (c *Cluster) DeployClusterPlanes() error {
@@ -67,7 +57,7 @@ func (c *Cluster) DeployClusterPlanes() error {
 	if err != nil {
 		return fmt.Errorf("[controlPlane] Failed to bring up Control Plane: %v", err)
 	}
-	err = services.RunWorkerPlane(c.ControlPlaneHosts, c.WorkerHosts, c.Services)
+	err = services.RunWorkerPlane(c.ControlPlaneHosts, c.WorkerHosts, c.Services, c.SystemImages[NginxProxyImage])
 	if err != nil {
 		return fmt.Errorf("[workerPlane] Failed to bring up Worker Plane: %v", err)
 	}
@@ -134,42 +124,45 @@ func (c *Cluster) setClusterDefaults() {
 			c.Nodes[i].SSHKeyPath = c.SSHKeyPath
 		}
 	}
-	setDefaultIfEmpty(&c.Services.KubeAPI.ServiceClusterIPRange, DefaultServiceClusterIPRange)
-	setDefaultIfEmpty(&c.Services.KubeController.ServiceClusterIPRange, DefaultServiceClusterIPRange)
-	setDefaultIfEmpty(&c.Services.KubeController.ClusterCIDR, DefaultClusterCIDR)
-	setDefaultIfEmpty(&c.Services.Kubelet.ClusterDNSServer, DefaultClusterDNSService)
-	setDefaultIfEmpty(&c.Services.Kubelet.ClusterDomain, DefaultClusterDomain)
-	setDefaultIfEmpty(&c.Services.Kubelet.InfraContainerImage, DefaultInfraContainerImage)
-	setDefaultIfEmpty(&c.Authentication.Strategy, DefaultAuthStrategy)
-
+	c.setClusterServicesDefaults()
 	c.setClusterNetworkDefaults()
 	c.setClusterImageDefaults()
 }
 
-func (c *Cluster) setClusterImageDefaults() {
-	if c.RKEImages == nil {
-		// don't break if the user didn't define rke_images
-		c.RKEImages = make(map[string]string)
+func (c *Cluster) setClusterServicesDefaults() {
+	serviceConfigDefaultsMap := map[string]string{
+		c.Services.KubeAPI.ServiceClusterIPRange:        DefaultServiceClusterIPRange,
+		c.Services.KubeController.ServiceClusterIPRange: DefaultServiceClusterIPRange,
+		c.Services.KubeController.ClusterCIDR:           DefaultClusterCIDR,
+		c.Services.Kubelet.ClusterDNSServer:             DefaultClusterDNSService,
+		c.Services.Kubelet.ClusterDomain:                DefaultClusterDomain,
+		c.Services.Kubelet.InfraContainerImage:          DefaultInfraContainerImage,
+		c.Authentication.Strategy:                       DefaultAuthStrategy,
 	}
-	setDefaultIfEmptyMapValue(c.RKEImages, "alpine", DefaultAplineImage)
-	setDefaultIfEmptyMapValue(c.RKEImages, "nginx_proxy", DefaultNginxProxyImage)
-	setDefaultIfEmptyMapValue(c.RKEImages, "cert_downloader", DefaultCertDownloaderImage)
-	setDefaultIfEmptyMapValue(c.RKEImages, "kubedns_image", DefaultKubeDNSImage)
-	setDefaultIfEmptyMapValue(c.RKEImages, "dnsmasq_image", DefaultDNSMasqImage)
-	setDefaultIfEmptyMapValue(c.RKEImages, "kubedns_sidecar_image", DefaultKubeDNSSidecarImage)
-	setDefaultIfEmptyMapValue(c.RKEImages, "kubedns_autoscaler_image", DefaultKubeDNSAutoScalerImage)
+	for k, v := range serviceConfigDefaultsMap {
+		setDefaultIfEmpty(&k, v)
+	}
 }
 
-func setDefaultIfEmptyMapValue(configMap map[string]string, key string, value string) {
-	if _, ok := configMap[key]; !ok {
-		configMap[key] = value
+func (c *Cluster) setClusterImageDefaults() {
+	if c.SystemImages == nil {
+		// don't break if the user didn't define rke_images
+		c.SystemImages = make(map[string]string)
+	}
+	systemImagesDefaultsMap := map[string]string{
+		AplineImage:            DefaultAplineImage,
+		NginxProxyImage:        DefaultNginxProxyImage,
+		CertDownloaderImage:    DefaultCertDownloaderImage,
+		KubeDNSImage:           DefaultKubeDNSImage,
+		DNSMasqImage:           DefaultDNSMasqImage,
+		KubeDNSSidecarImage:    DefaultKubeDNSSidecarImage,
+		KubeDNSAutoScalerImage: DefaultKubeDNSAutoScalerImage,
+	}
+	for k, v := range systemImagesDefaultsMap {
+		setDefaultIfEmptyMapValue(c.SystemImages, k, v)
 	}
 }
-func setDefaultIfEmpty(varName *string, defaultValue string) {
-	if len(*varName) == 0 {
-		*varName = defaultValue
-	}
-}
+
 func GetLocalKubeConfig(configPath string) string {
 	baseDir := filepath.Dir(configPath)
 	fileName := filepath.Base(configPath)
@@ -177,7 +170,6 @@ func GetLocalKubeConfig(configPath string) string {
 	return fmt.Sprintf("%s%s%s", baseDir, pki.KubeAdminConfigPrefix, fileName)
 }
 
-<<<<<<< HEAD
 func rebuildLocalAdminConfig(kubeCluster *Cluster) error {
 	logrus.Infof("[reconcile] Rebuilding and update local kube config")
 	var workingConfig string
@@ -197,45 +189,6 @@ func rebuildLocalAdminConfig(kubeCluster *Cluster) error {
 		workingConfig = newConfig
 		if _, err := GetK8sVersion(kubeCluster.LocalKubeConfigPath); err != nil {
 			logrus.Infof("[reconcile] host [%s] is not active master on the cluster", cpHost.Address)
-=======
-func ReconcileCluster(kubeCluster, currentCluster *Cluster) error {
-	logrus.Infof("[reconcile] Reconciling cluster state")
-	if currentCluster == nil {
-		logrus.Infof("[reconcile] This is newly generated cluster")
-		return nil
-	}
-	if err := rebuildLocalAdminConfig(kubeCluster); err != nil {
-		return err
-	}
-	kubeClient, err := k8s.NewClient(kubeCluster.LocalKubeConfigPath)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize new kubernetes client: %v", err)
-	}
-	key, _ := checkEncryptedKey(kubeCluster.SSHKeyPath)
-
-	logrus.Infof("[reconcile] Check Control plane hosts to be deleted")
-	cpToDelete := hosts.GetToDeleteHosts(currentCluster.ControlPlaneHosts, kubeCluster.ControlPlaneHosts)
-	for _, toDeleteHost := range cpToDelete {
-		if err := hosts.DeleteNode(&toDeleteHost, kubeClient); err != nil {
-			return fmt.Errorf("Failed to delete controlplane node %s from cluster", toDeleteHost.Address)
-		}
-		// attempting to clean up the host
-		if err := reconcileHostCleaner(toDeleteHost, key, false, currentCluster.RKEImages["alpine"]); err != nil {
-			logrus.Warnf("[reconcile] Couldn't clean up controlplane node [%s]: %v", toDeleteHost.Address, err)
-			continue
-		}
-	}
-
-	logrus.Infof("[reconcile] Check worker hosts to be deleted")
-	wpToDelete := hosts.GetToDeleteHosts(currentCluster.WorkerHosts, kubeCluster.WorkerHosts)
-	for _, toDeleteHost := range wpToDelete {
-		if err := hosts.DeleteNode(&toDeleteHost, kubeClient); err != nil {
-			return fmt.Errorf("Failed to delete worker node %s from cluster", toDeleteHost.Address)
-		}
-		// attempting to clean up the host
-		if err := reconcileHostCleaner(toDeleteHost, key, true, currentCluster.RKEImages["apline"]); err != nil {
-			logrus.Warnf("[reconcile] Couldn't clean up worker node [%s]: %v", toDeleteHost.Address, err)
->>>>>>> configurable_images_wip
 			continue
 		} else {
 			break
@@ -246,26 +199,10 @@ func ReconcileCluster(kubeCluster, currentCluster *Cluster) error {
 	return nil
 }
 
-<<<<<<< HEAD
 func isLocalConfigWorking(localKubeConfigPath string) bool {
 	if _, err := GetK8sVersion(localKubeConfigPath); err != nil {
 		logrus.Infof("[reconcile] Local config is not vaild, rebuilding admin config")
 		return false
-=======
-func reconcileHostCleaner(toDeleteHost hosts.Host, key ssh.Signer, worker bool, cleanerImage string) error {
-	if err := toDeleteHost.TunnelUp(key); err != nil {
-		return fmt.Errorf("Not able to reach the host: %v", err)
-	}
-	if err := services.RemoveControlPlane([]hosts.Host{toDeleteHost}); err != nil {
-		return fmt.Errorf("Couldn't remove control plane: %v", err)
-	}
-
-	if err := services.RemoveWorkerPlane(nil, []hosts.Host{toDeleteHost}); err != nil {
-		return fmt.Errorf("Couldn't remove worker plane: %v", err)
-	}
-	if err := toDeleteHost.CleanUp(cleanerImage); err != nil {
-		return fmt.Errorf("Not able to clean the host: %v", err)
->>>>>>> configurable_images_wip
 	}
 	return true
 }

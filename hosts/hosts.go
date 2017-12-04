@@ -29,7 +29,7 @@ const (
 	CleanerContainerName = "kube-cleaner"
 )
 
-func (h *Host) CleanUp(cleanerImage string) error {
+func (h *Host) CleanUpAll(cleanerImage string) error {
 	logrus.Infof("[hosts] Cleaning up host [%s]", h.Address)
 	toCleanPaths := []string{
 		ToCleanEtcdDir,
@@ -38,10 +38,10 @@ func (h *Host) CleanUp(cleanerImage string) error {
 		ToCleanCNIBin,
 		ToCleanCalicoRun,
 	}
-	return h.CleanUp(toCleanPaths)
+	return h.CleanUp(toCleanPaths, cleanerImage)
 }
 
-func (h *Host) CleanUpWorkerHost(controlRole string) error {
+func (h *Host) CleanUpWorkerHost(controlRole, cleanerImage string) error {
 	if h.IsControl {
 		logrus.Infof("[hosts] Host [%s] is already a controlplane host, skipping cleanup.", h.Address)
 		return nil
@@ -52,10 +52,10 @@ func (h *Host) CleanUpWorkerHost(controlRole string) error {
 		ToCleanCNIBin,
 		ToCleanCalicoRun,
 	}
-	return h.CleanUp(toCleanPaths)
+	return h.CleanUp(toCleanPaths, cleanerImage)
 }
 
-func (h *Host) CleanUpControlHost(workerRole string) error {
+func (h *Host) CleanUpControlHost(workerRole, cleanerImage string) error {
 	if h.IsWorker {
 		logrus.Infof("[hosts] Host [%s] is already a worker host, skipping cleanup.", h.Address)
 		return nil
@@ -66,10 +66,10 @@ func (h *Host) CleanUpControlHost(workerRole string) error {
 		ToCleanCNIBin,
 		ToCleanCalicoRun,
 	}
-	return h.CleanUp(toCleanPaths)
+	return h.CleanUp(toCleanPaths, cleanerImage)
 }
 
-func (h *Host) CleanUp(toCleanPaths []string) error {
+func (h *Host) CleanUp(toCleanPaths []string, cleanerImage string) error {
 	logrus.Infof("[hosts] Cleaning up host [%s]", h.Address)
 	imageCfg, hostCfg := buildCleanerConfig(h, toCleanPaths, cleanerImage)
 	logrus.Infof("[hosts] Running cleaner container on host [%s]", h.Address)

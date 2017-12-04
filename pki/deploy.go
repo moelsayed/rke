@@ -14,11 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-<<<<<<< HEAD
-func DeployCertificatesOnMasters(cpHosts []*hosts.Host, crtMap map[string]CertificatePKI) error {
-=======
-func DeployCertificatesOnMasters(cpHosts []hosts.Host, crtMap map[string]CertificatePKI, certDownloaderImage string) error {
->>>>>>> configurable_images_wip
+func DeployCertificatesOnMasters(cpHosts []*hosts.Host, crtMap map[string]CertificatePKI, certDownloaderImage string) error {
 	// list of certificates that should be deployed on the masters
 	crtList := []string{
 		CACertName,
@@ -35,11 +31,7 @@ func DeployCertificatesOnMasters(cpHosts []hosts.Host, crtMap map[string]Certifi
 	}
 
 	for i := range cpHosts {
-<<<<<<< HEAD
-		err := doRunDeployer(cpHosts[i], env)
-=======
-		err := doRunDeployer(&cpHosts[i], env, certDownloaderImage)
->>>>>>> configurable_images_wip
+		err := doRunDeployer(cpHosts[i], env, certDownloaderImage)
 		if err != nil {
 			return err
 		}
@@ -47,11 +39,7 @@ func DeployCertificatesOnMasters(cpHosts []hosts.Host, crtMap map[string]Certifi
 	return nil
 }
 
-<<<<<<< HEAD
-func DeployCertificatesOnWorkers(workerHosts []*hosts.Host, crtMap map[string]CertificatePKI) error {
-=======
-func DeployCertificatesOnWorkers(workerHosts []hosts.Host, crtMap map[string]CertificatePKI, certDownloaderImage string) error {
->>>>>>> configurable_images_wip
+func DeployCertificatesOnWorkers(workerHosts []*hosts.Host, crtMap map[string]CertificatePKI, certDownloaderImage string) error {
 	// list of certificates that should be deployed on the workers
 	crtList := []string{
 		CACertName,
@@ -65,11 +53,7 @@ func DeployCertificatesOnWorkers(workerHosts []hosts.Host, crtMap map[string]Cer
 	}
 
 	for i := range workerHosts {
-<<<<<<< HEAD
-		err := doRunDeployer(workerHosts[i], env)
-=======
-		err := doRunDeployer(&workerHosts[i], env, certDownloaderImage)
->>>>>>> configurable_images_wip
+		err := doRunDeployer(workerHosts[i], env, certDownloaderImage)
 		if err != nil {
 			return err
 		}

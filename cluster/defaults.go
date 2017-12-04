@@ -7,6 +7,7 @@ const (
 	DefaultClusterCIDR           = "10.233.64.0/18"
 	DefaultClusterDNSService     = "10.233.0.3"
 	DefaultClusterDomain         = "cluster.local"
+	DefaultClusterSSHKeyPath     = "~/.ssh/id_rsa"
 
 	DefaultAuthStrategy = "x509"
 
@@ -31,3 +32,14 @@ const (
 	DefaultKubeDNSSidecarImage    = "gcr.io/google_containers/k8s-dns-sidecar-amd64:1.14.5"
 	DefaultKubeDNSAutoScalerImage = "gcr.io/google_containers/cluster-proportional-autoscaler-amd64:1.0.0"
 )
+
+func setDefaultIfEmptyMapValue(configMap map[string]string, key string, value string) {
+	if _, ok := configMap[key]; !ok {
+		configMap[key] = value
+	}
+}
+func setDefaultIfEmpty(varName *string, defaultValue string) {
+	if len(*varName) == 0 {
+		*varName = defaultValue
+	}
+}

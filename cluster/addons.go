@@ -36,13 +36,14 @@ func (c *Cluster) DeployUserAddOns() error {
 
 func (c *Cluster) deployKubeDNS() error {
 	logrus.Infof("[addons] Setting up KubeDNS")
-	kubeDNSConfig := make(map[string]string)
-	kubeDNSConfig["clusterDNSServer"] = c.ClusterDNSServer
-	kubeDNSConfig["clusterDomain"] = c.ClusterDomain
-	kubeDNSConfig["image"] = c.RKEImages["kubedns_image"]
-	kubeDNSConfig["dnsmasq_image"] = c.RKEImages["dnsmasq_image"]
-	kubeDNSConfig["sidecar_image"] = c.RKEImages["kubedns_sidecar_image"]
-	kubeDNSConfig["autoscaler_image"] = c.RKEImages["kubedns_autoscaler_image"]
+	kubeDNSConfig := map[string]string{
+		addons.KubeDNSServer:          c.ClusterDNSServer,
+		addons.KubeDNSClusterDomain:   c.ClusterDomain,
+		addons.KubeDNSImage:           c.SystemImages[KubeDNSImage],
+		addons.DNSMasqImage:           c.SystemImages[DNSMasqImage],
+		addons.KubeDNSSidecarImage:    c.SystemImages[KubeDNSSidecarImage],
+		addons.KubeDNSAutoScalerImage: c.SystemImages[KubeDNSAutoScalerImage],
+	}
 	kubeDNSYaml := addons.GetKubeDNSManifest(kubeDNSConfig)
 	if err := c.doAddonDeploy(kubeDNSYaml, KubeDNSAddonResourceName); err != nil {
 		return err

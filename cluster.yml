@@ -58,7 +58,7 @@ services:
     image: rancher/k8s:v1.8.3-rancher2
 
 
-rke_images:
+system_images:
   alpine: alpine:latest
   nginx_proxy: rancher/rke-nginx-proxy:0.1.0
   cert_downloader: rancher/rke-cert-deployer:0.1.0
