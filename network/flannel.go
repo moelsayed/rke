@@ -9,6 +9,50 @@ func GetFlannelManifest(flannelConfig map[string]string) string {
 	}
 	return `
 ---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: flannel
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - nodes/status
+    verbs:
+      - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: flannel
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flannel
+subjects:
+- kind: ServiceAccount
+  name: flannel
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flannel
+  namespace: kube-system
+---
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -62,6 +106,7 @@ spec:
         k8s-app: flannel
     spec:
       containers:
+      serviceAccountName: flannel
       - name: kube-flannel
         image: ` + flannelConfig[FlannelImage] + `
         imagePullPolicy: IfNotPresent

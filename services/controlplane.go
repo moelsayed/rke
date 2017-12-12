@@ -6,7 +6,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func RunControlPlane(controlHosts, etcdHosts []*hosts.Host, controlServices v3.RKEConfigServices, sidekickImage string) error {
+func RunControlPlane(controlHosts, etcdHosts []*hosts.Host, controlServices v3.RKEConfigServices, sidekickImage, authorization_mode string) error {
 	logrus.Infof("[%s] Building up Controller Plane..", ControlRole)
 	for _, host := range controlHosts {
 
@@ -20,7 +20,7 @@ func RunControlPlane(controlHosts, etcdHosts []*hosts.Host, controlServices v3.R
 			return err
 		}
 		// run kubeapi
-		err := runKubeAPI(host, etcdHosts, controlServices.KubeAPI)
+		err := runKubeAPI(host, etcdHosts, controlServices.KubeAPI, authorization_mode)
 		if err != nil {
 			return err
 		}

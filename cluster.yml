@@ -21,6 +21,8 @@ network:
 
 ssh_key_path: ~/.ssh/test
 
+authorization_mode: rbac
+
 nodes:
   - address: 1.1.1.1
     user: ubuntu

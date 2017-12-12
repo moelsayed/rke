@@ -31,6 +31,8 @@ type Cluster struct {
 	ClusterCIDR                      string
 	ClusterDNSServer                 string
 	Dialer                           hosts.Dialer
+	// move to types
+	AuthorizationMode string `yaml:"authorization_mode"`
 }
 
 const (
@@ -58,7 +60,8 @@ func (c *Cluster) DeployClusterPlanes() error {
 	err = services.RunControlPlane(c.ControlPlaneHosts,
 		c.EtcdHosts,
 		c.Services,
-		c.SystemImages[ServiceSidekickImage])
+		c.SystemImages[ServiceSidekickImage],
+		c.AuthorizationMode)
 	if err != nil {
 		return fmt.Errorf("[controlPlane] Failed to bring up Control Plane: %v", err)
 	}
