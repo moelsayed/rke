@@ -25,7 +25,7 @@ func RunControlPlane(controlHosts, etcdHosts []*hosts.Host, controlServices v3.R
 			return err
 		}
 		// run kubecontroller
-		err = runKubeController(host, controlServices.KubeController)
+		err = runKubeController(host, controlServices.KubeController, authorization_mode)
 		if err != nil {
 			return err
 		}

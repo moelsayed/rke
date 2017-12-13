@@ -14,6 +14,40 @@ import (
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 )
 
+func ApplyJobExecuterServiceAccount(kubeConfigPath string) error {
+	jobExecuterServiceAccount := `
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rke-job-executer
+  namespace: kube-system
+`
+
+	jobExecuterClusterRoleBinding := `
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: job-executer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  namespace: kube-system
+  name: rke-job-executer`
+
+	k8sClient, err := NewClient(kubeConfigPath)
+	if err != nil {
+		return err
+	}
+	if err := UpdateClusterRoleBinding(k8sClient, jobExecuterClusterRoleBinding); err != nil {
+		return err
+	}
+	return UpdateServiceAccount(k8sClient, jobExecuterServiceAccount)
+
+}
+
 func ApplyK8sSystemJob(jobYaml, kubeConfigPath string) error {
 	job := v1.Job{}
 	decoder := yamlutil.NewYAMLToJSONDecoder(bytes.NewReader([]byte(jobYaml)))

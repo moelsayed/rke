@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/rancher/rke/hosts"
+	"github.com/rancher/rke/k8s"
 	"github.com/rancher/rke/pki"
 	"github.com/rancher/rke/services"
 	"github.com/rancher/types/apis/management.cattle.io/v3"
@@ -72,6 +73,14 @@ func (c *Cluster) DeployClusterPlanes() error {
 		c.SystemImages[ServiceSidekickImage])
 	if err != nil {
 		return fmt.Errorf("[workerPlane] Failed to bring up Worker Plane: %v", err)
+	}
+	if c.AuthorizationMode == services.RBACAuthorizationMode {
+		if err = k8s.ApplyJobExecuterServiceAccount(c.LocalKubeConfigPath); err != nil {
+			return fmt.Errorf("Failed to apply needed service account needed for job execution: %v", err)
+		}
+		if err = k8s.ApplySystemNodeClusterRoleBinding(c.LocalKubeConfigPath); err != nil {
+			return fmt.Errorf("Failed to apply needed ClusterRoleBinding needed for node authorization: %v", err)
+		}
 	}
 	return nil
 }
