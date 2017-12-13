@@ -17,4 +17,5 @@ const (
 	FlannelIface     = "flannelIface"
 	CloudProvider    = "cloudprovider"
 	AWSCloudProvider = "aws"
+	RBACConfig       = "rbacConfig"
 )

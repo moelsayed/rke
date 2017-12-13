@@ -56,6 +56,7 @@ func (c *Cluster) doFlannelDeploy() error {
 		network.FlannelImage:    c.Network.Options[FlannelImage],
 		network.FlannelCNIImage: c.Network.Options[FlannelCNIImage],
 		network.FlannelIface:    c.Network.Options[FlannelIface],
+		network.RBACConfig:      c.AuthorizationMode,
 	}
 	pluginYaml := network.GetFlannelManifest(flannelConfig)
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)
@@ -75,6 +76,7 @@ func (c *Cluster) doCalicoDeploy() error {
 		network.ControllersImage: c.Network.Options[CalicoControllersImages],
 		network.CalicoctlImage:   c.Network.Options[CalicoctlImage],
 		network.CloudProvider:    c.Network.Options[CalicoCloudProvider],
+		network.RBACConfig:       c.AuthorizationMode,
 	}
 	pluginYaml := network.GetCalicoManifest(calicoConfig)
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)

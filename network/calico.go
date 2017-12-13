@@ -1,5 +1,7 @@
 package network
 
+import "github.com/rancher/rke/services"
+
 func GetCalicoManifest(calicoConfig map[string]string) string {
 	awsIPPool := ""
 	if calicoConfig[CloudProvider] == AWSCloudProvider {
@@ -48,9 +50,14 @@ spec:
         - key: aws-ippool
           path: aws-ippool.yaml
         `
+	rbacConfig := ""
+	if calicoConfig[RBACConfig] == services.RBACAuthorizationMode {
+		rbacConfig = getCalicoRBACManifest()
 	}
 
-	return `# Calico Version master
+	return rbacConfig + `
+---
+# Calico Version master
 # https://docs.projectcalico.org/master/releases#master
 # This manifest includes the following component versions:
 #   calico/node:master
@@ -443,5 +450,36 @@ metadata:
   name: calico-node
   namespace: kube-system
 ` + awsIPPool + `
+`
+}
+
+func getCalicoRBACManifest() string {
+	return `
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: calico-node
+  namespace: kube-system
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - nodes
+    verbs:
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: calico-node
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: calico-node
+subjects:
+- kind: ServiceAccount
+  name: calico-node
+  namespace: kube-system
 `
 }

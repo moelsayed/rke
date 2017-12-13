@@ -3,7 +3,7 @@ package k8s
 import (
 	"bytes"
 
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	yamlutil "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
@@ -36,14 +36,14 @@ subjects:
 }
 
 func UpdateClusterRoleBinding(k8sClient *kubernetes.Clientset, clusterRoleBindingYaml string) error {
-	clusterRoleBinding := rbacv1beta1.ClusterRoleBinding{}
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{}
 	decoder := yamlutil.NewYAMLToJSONDecoder(bytes.NewReader([]byte(clusterRoleBindingYaml)))
 	if err := decoder.Decode(&clusterRoleBinding); err != nil {
 		return err
 	}
-	if _, err := k8sClient.RbacV1beta1().ClusterRoleBindings().Create(&clusterRoleBinding); err != nil {
+	if _, err := k8sClient.RbacV1().ClusterRoleBindings().Create(&clusterRoleBinding); err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			if _, err := k8sClient.RbacV1beta1().ClusterRoleBindings().Update(&clusterRoleBinding); err != nil {
+			if _, err := k8sClient.RbacV1().ClusterRoleBindings().Update(&clusterRoleBinding); err != nil {
 				return err
 			}
 		} else {
