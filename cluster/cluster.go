@@ -33,7 +33,13 @@ type Cluster struct {
 	ClusterDNSServer                 string
 	Dialer                           hosts.Dialer
 	// move to types
-	AuthorizationMode string `yaml:"authorization_mode"`
+	Authorization AuthzConfig `yaml:"authorization"`
+}
+
+// move to types
+type AuthzConfig struct {
+	Mode    string            `yaml:"mode"`
+	Options map[string]string `yaml:"options"`
 }
 
 const (
@@ -62,7 +68,7 @@ func (c *Cluster) DeployClusterPlanes() error {
 		c.EtcdHosts,
 		c.Services,
 		c.SystemImages[ServiceSidekickImage],
-		c.AuthorizationMode)
+		c.Authorization.Mode)
 	if err != nil {
 		return fmt.Errorf("[controlPlane] Failed to bring up Control Plane: %v", err)
 	}
@@ -74,10 +80,10 @@ func (c *Cluster) DeployClusterPlanes() error {
 	if err != nil {
 		return fmt.Errorf("[workerPlane] Failed to bring up Worker Plane: %v", err)
 	}
-	if c.AuthorizationMode == services.RBACAuthorizationMode {
-		if err = k8s.ApplyJobExecuterServiceAccount(c.LocalKubeConfigPath); err != nil {
-			return fmt.Errorf("Failed to apply needed service account needed for job execution: %v", err)
-		}
+	if err = k8s.ApplyJobExecuterServiceAccount(c.LocalKubeConfigPath); err != nil {
+		return fmt.Errorf("Failed to apply needed service account needed for job execution: %v", err)
+	}
+	if c.Authorization.Mode == services.RBACAuthorizationMode {
 		if err = k8s.ApplySystemNodeClusterRoleBinding(c.LocalKubeConfigPath); err != nil {
 			return fmt.Errorf("Failed to apply needed ClusterRoleBinding needed for node authorization: %v", err)
 		}

@@ -20,7 +20,7 @@ func UpdateServiceAccount(k8sClient *kubernetes.Clientset, serviceAccountYaml st
 
 	if _, err := k8sClient.CoreV1().ServiceAccounts(metav1.NamespaceSystem).Create(&serviceAccount); err != nil {
 		if apierrors.IsAlreadyExists(err) {
-			if _, err := k8sClient.CoreV1().ServiceAccounts(metav1.NamespaceSystem).Create(&serviceAccount); err != nil {
+			if _, err := k8sClient.CoreV1().ServiceAccounts(metav1.NamespaceSystem).Update(&serviceAccount); err != nil {
 				return err
 			}
 		} else {

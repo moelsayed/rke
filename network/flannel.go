@@ -138,7 +138,13 @@ spec:
   updateStrategy:
     rollingUpdate:
       maxUnavailable: 20%
-    type: RollingUpdate`
+    type: RollingUpdate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: flannel
+  namespace: kube-system`
 }
 
 func getFlannelRBACManifest() string {
@@ -180,11 +186,5 @@ rules:
     resources:
       - nodes/status
     verbs:
-      - patch
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: flannel
-  namespace: kube-system`
+      - patch`
 }
