@@ -92,13 +92,20 @@ func (c *Cluster) doCanalDeploy() error {
 		network.NodeImage:    c.Network.Options[CanalNodeImage],
 		network.CNIImage:     c.Network.Options[CanalCNIImage],
 		network.FlannelImage: c.Network.Options[CanalFlannelImage],
+		network.RBACConfig:   c.AuthorizationMode,
 	}
 	pluginYaml := network.GetCanalManifest(canalConfig)
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)
 }
 
 func (c *Cluster) doWeaveDeploy() error {
-	pluginYaml := network.GetWeaveManifest(c.ClusterCIDR, c.Network.Options[WeaveImage], c.Network.Options[WeaveCNIImage])
+	weaveConfig := map[string]string{
+		network.ClusterCIDR:   c.ClusterCIDR,
+		network.WeaveImage:    c.Network.Options[WeaveImage],
+		network.WeaveCNIImage: c.Network.Options[WeaveCNIImage],
+		network.RBACConfig:    c.AuthorizationMode,
+	}
+	pluginYaml := network.GetWeaveManifest(weaveConfig)
 	return c.doAddonDeploy(pluginYaml, NetworkPluginResourceName)
 }
 
