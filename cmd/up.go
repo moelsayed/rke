@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/rancher/norman/event"
 	"github.com/rancher/rke/cluster"
 	"github.com/rancher/rke/hosts"
 	"github.com/rancher/rke/pki"
@@ -31,8 +32,13 @@ func UpCommand() cli.Command {
 	}
 }
 
-func ClusterUp(rkeConfig *v3.RancherKubernetesEngineConfig, dockerDialerFactory, healthcheckDialerFactory hosts.DialerFactory) (string, string, string, string, error) {
+func ClusterUp(rkeConfig *v3.RancherKubernetesEngineConfig, dockerDialerFactory, healthcheckDialerFactory hosts.DialerFactory, logger event.Logger) (string, string, string, string, error) {
 	logrus.Infof("Building Kubernetes cluster")
+	// just to test the Logger
+
+	if logger != nil {
+		logger.Infof(nil, "Building Kubernetes cluster")
+	}
 	var APIURL, caCrt, clientCert, clientKey string
 	kubeCluster, err := cluster.ParseCluster(rkeConfig, clusterFilePath, dockerDialerFactory, healthcheckDialerFactory)
 	if err != nil {
@@ -118,6 +124,6 @@ func clusterUpFromCli(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("Failed to parse cluster file: %v", err)
 	}
-	_, _, _, _, err = ClusterUp(rkeConfig, nil, nil)
+	_, _, _, _, err = ClusterUp(rkeConfig, nil, nil, nil)
 	return err
 }
