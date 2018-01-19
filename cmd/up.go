@@ -59,9 +59,9 @@ func ClusterUp(
 		return APIURL, caCrt, clientCert, clientKey, err
 	}
 
-	if err = kubeCluster.CheckClusterPorts(ctx, currentCluster); err != nil {
-		return APIURL, caCrt, clientCert, clientKey, err
-	}
+	// if err = kubeCluster.CheckClusterPorts(ctx, currentCluster); err != nil {
+	// 	return APIURL, caCrt, clientCert, clientKey, err
+	// }
 
 	err = cluster.SetUpAuthentication(ctx, kubeCluster, currentCluster)
 	if err != nil {
