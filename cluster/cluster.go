@@ -16,6 +16,7 @@ import (
 	"github.com/rancher/rke/services"
 	"github.com/rancher/types/apis/management.cattle.io/v3"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -53,6 +54,18 @@ const (
 )
 
 func (c *Cluster) DeployControlPlane(ctx context.Context) error {
+	// pre-pull k8s image on WorkerHosts
+	logrus.Debugf("Pre-pulling kubernetes images on worker hosts")
+	var errgrp errgroup.Group
+	for _, host := range c.WorkerHosts {
+		runHost := host
+		if runHost.IsControl || runHost.IsEtcd {
+			continue
+		}
+		errgrp.Go(func() error {
+			return docker.UseLocalOrPull(ctx, runHost.DClient, runHost.Address, c.SystemImages.Kubernetes, "worker", c.PrivateRegistriesMap)
+		})
+	}
 	// Deploy Etcd Plane
 	if err := services.RunEtcdPlane(ctx, c.EtcdHosts, c.Services.Etcd, c.LocalConnDialerFactory, c.PrivateRegistriesMap); err != nil {
 		return fmt.Errorf("[etcd] Failed to bring up Etcd Plane: %v", err)
@@ -71,7 +84,8 @@ func (c *Cluster) DeployControlPlane(ctx context.Context) error {
 	if err := c.ApplyAuthzResources(ctx); err != nil {
 		return fmt.Errorf("[auths] Failed to apply RBAC resources: %v", err)
 	}
-	return nil
+	// we have to wait for the kubernetes images to be pulled anyway, before continuing with worker hosts.
+	return errgrp.Wait()
 }
 
 func (c *Cluster) DeployWorkerPlane(ctx context.Context) error {
