@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/docker/api/types"
 	"github.com/rancher/rke/hosts"
 	"github.com/rancher/rke/k8s"
 	"github.com/rancher/rke/log"
@@ -30,9 +29,14 @@ const (
 	stateFileExt = ".rkestate"
 )
 
+type RKEFullState struct {
+	DesiredState RKEState `json:"desiredState,omitempty"`
+	CurrentState RKEState `json:"currentState,omitempty"`
+}
+
 type RKEState struct {
-	DesiredState v3.RKEPlan `json:"desiredState"`
-	CurrentState v3.RKEPlan `json:"currentState"`
+	RancherKubernetesEngineConfig v3.RancherKubernetesEngineConfig `json:"rkeConfig,omitempty"`
+	CertificatesBundle            map[string]v3.CertificatePKI     `json:"certificatesBundle,omitempty"`
 }
 
 func (c *Cluster) SaveClusterState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig) error {
@@ -265,33 +269,42 @@ func GetK8sVersion(localConfigPath string, k8sWrapTransport k8s.WrapTransport) (
 	return fmt.Sprintf("%#v", *serverVersion), nil
 }
 
-func GetDesiredState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, hostsInfoMap map[string]types.Info) (v3.RKEPlan, error) {
-	// Generate a Plan from RKEConfig
-	DesiredState, err := GeneratePlan(ctx, rkeConfig, hostsInfoMap)
-	if err != nil {
-		return DesiredState, fmt.Errorf("Failed to generate plan for desired state: %v", err)
-	}
+func GenerateDesiredState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig) (RKEState, error) {
+	var desiredState RKEState
 	// Get the certificate Bundle
 	certBundle, err := pki.GenerateRKECerts(ctx, *rkeConfig, "", "")
 	if err != nil {
-		return DesiredState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
+		return desiredState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
 	}
-	DesiredState.CertificatesBundle = make(map[string]v3.CertificatePKI)
 	// Convert rke certs to v3.certs
+	certificatesBundle := make(map[string]v3.CertificatePKI)
 	for name, certPKI := range certBundle {
 		certificatePEM := string(cert.EncodeCertPEM(certPKI.Certificate))
 		keyPEM := string(cert.EncodePrivateKeyPEM(certPKI.Key))
-		DesiredState.CertificatesBundle[name] = v3.CertificatePKI{
-			Name:        certPKI.Name,
-			Config:      certPKI.Config,
-			Certificate: certificatePEM,
-			Key:         keyPEM,
+		certificatesBundle[name] = v3.CertificatePKI{
+			Name:          certPKI.Name,
+			Config:        certPKI.Config,
+			Certificate:   certificatePEM,
+			Key:           keyPEM,
+			EnvName:       certPKI.EnvName,
+			KeyEnvName:    certPKI.KeyEnvName,
+			ConfigEnvName: certPKI.ConfigEnvName,
+			Path:          certPKI.Path,
+			KeyPath:       certPKI.KeyPath,
+			ConfigPath:    certPKI.ConfigPath,
+			CommonName:    certPKI.CommonName,
+			OUName:        certPKI.OUName,
 		}
 	}
-	return DesiredState, nil
+	desiredState.RancherKubernetesEngineConfig = *rkeConfig
+	desiredState.CertificatesBundle = certificatesBundle
+
+	return desiredState, nil
 }
 
-func (s *RKEState) WriteStateFile(ctx context.Context, statePath string) error {
+func (s *RKEFullState) WriteStateFile(ctx context.Context, clusterFilePath, configDir string) error {
+	statePath := getStateFilePath(clusterFilePath, configDir)
+
 	stateFile, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return fmt.Errorf("Failed to Marshal state object: %v", err)
@@ -304,7 +317,14 @@ func (s *RKEState) WriteStateFile(ctx context.Context, statePath string) error {
 	return nil
 }
 
-func getStateFilePath(clusterFilePath string) string {
-	trimmedName := strings.TrimSuffix(clusterFilePath, filepath.Ext(clusterFilePath))
+func getStateFilePath(configPath, configDir string) string {
+	baseDir := filepath.Dir(configPath)
+	if len(configDir) > 0 {
+		baseDir = filepath.Dir(configDir)
+	}
+	fileName := filepath.Base(configPath)
+	baseDir += "/"
+	fullPath := fmt.Sprintf("%s%s", baseDir, fileName)
+	trimmedName := strings.TrimSuffix(fullPath, filepath.Ext(fullPath))
 	return trimmedName + stateFileExt
 }

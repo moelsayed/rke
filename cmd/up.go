@@ -65,33 +65,21 @@ func UpCommand() cli.Command {
 	}
 }
 
-func ClusterInit(ctx context.Context,
-	rkeConfig *v3.RancherKubernetesEngineConfig,
-	dockerDialerFactory, localConnDialerFactory hosts.DialerFactory,
-	k8sWrapTransport k8s.WrapTransport,
-	local bool, configDir string) error {
-
+func ClusterInit(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, configDir string) error {
 	log.Infof(ctx, "Initiating Kubernetes cluster")
-	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
+	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, nil, nil, nil)
 	if err != nil {
 		return err
 	}
-
-	err = kubeCluster.TunnelHosts(ctx, local)
+	desiredState, err := cluster.GenerateDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig)
 	if err != nil {
 		return err
 	}
-	// build hostInfoMap
-	hostsInfoMap := kubeCluster.GetHostInfoMap()
-	desiredState, err := cluster.GetDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig, hostsInfoMap)
-	if err != nil {
-		return err
-	}
-	rkeState := cluster.RKEState{
+	rkeState := cluster.RKEFullState{
 		DesiredState: desiredState,
+		CurrentState: cluster.RKEState{},
 	}
-	rkeState.WriteStateFile(ctx, kubeCluster.StateFilePath)
-	return nil
+	return rkeState.WriteStateFile(ctx, clusterFilePath, configDir)
 }
 
 func ClusterUp(
@@ -232,7 +220,7 @@ func clusterUpFromCli(ctx *cli.Context) error {
 	updateOnly := ctx.Bool("update-only")
 	disablePortCheck := ctx.Bool("disable-port-check")
 	if ctx.Bool("init") {
-		return ClusterInit(context.Background(), rkeConfig, nil, nil, nil, false, "")
+		return ClusterInit(context.Background(), rkeConfig, "")
 	}
 	_, _, _, _, _, err = ClusterUp(context.Background(), rkeConfig, nil, nil, nil, false, "", updateOnly, disablePortCheck)
 	return err

@@ -579,20 +579,20 @@ type CertificatePKI struct {
 	Key string
 	// Kubeconfig file
 	Config string
-	// // CommonName in the certificate
-	// CommonName string
-	// // Organizational Name in the certificate
-	// OUName string
-	// // Environment name of the certificate
-	// EnvName string
-	// // Path of the certificate on disk
-	// Path string
-	// // Environment name of the key
-	// KeyEnvName string
-	// // Path of the key on disk
-	// KeyPath string
-	// // Environment name of the kubeconfig
-	// ConfigEnvName string
-	// // Path of the kubeconfig on disk
-	// ConfigPath string
+	// CommonName in the certificate
+	CommonName string
+	// Organizational Name in the certificate
+	OUName string
+	// Environment name of the certificate
+	EnvName string
+	// Path of the certificate on disk
+	Path string
+	// Environment name of the key
+	KeyEnvName string
+	// Path of the key on disk
+	KeyPath string
+	// Environment name of the kubeconfig
+	ConfigEnvName string
+	// Path of the kubeconfig on disk
+	ConfigPath string
 }
