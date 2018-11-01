@@ -283,7 +283,7 @@ type RKEPlan struct {
 	// List of node Plans
 	Nodes []RKEConfigNodePlan `json:"nodes,omitempty"`
 	// Certificates Key Pair
-	CertificatesBundle map[string]CertificatePKI
+	CertificatesBundle map[string]CertificatePKI `json:"certificatesBundle,omitempty"`
 }
 
 type RKEConfigNodePlan struct {

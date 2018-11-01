@@ -49,6 +49,10 @@ func UpCommand() cli.Command {
 			Name:  "disable-port-check",
 			Usage: "Disable port check validation between nodes",
 		},
+		cli.BoolFlag{
+			Name:  "init",
+			Usage: "test init",
+		},
 	}
 
 	upFlags = append(upFlags, commonFlags...)
@@ -59,6 +63,35 @@ func UpCommand() cli.Command {
 		Action: clusterUpFromCli,
 		Flags:  upFlags,
 	}
+}
+
+func ClusterInit(ctx context.Context,
+	rkeConfig *v3.RancherKubernetesEngineConfig,
+	dockerDialerFactory, localConnDialerFactory hosts.DialerFactory,
+	k8sWrapTransport k8s.WrapTransport,
+	local bool, configDir string) error {
+
+	log.Infof(ctx, "Initiating Kubernetes cluster")
+	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
+	if err != nil {
+		return err
+	}
+
+	err = kubeCluster.TunnelHosts(ctx, local)
+	if err != nil {
+		return err
+	}
+	// build hostInfoMap
+	hostsInfoMap := kubeCluster.GetHostInfoMap()
+	desiredState, err := cluster.GetDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig, hostsInfoMap)
+	if err != nil {
+		return err
+	}
+	rkeState := cluster.RKEState{
+		DesiredState: desiredState,
+	}
+	rkeState.WriteStateFile(ctx, kubeCluster.StateFilePath)
+	return nil
 }
 
 func ClusterUp(
@@ -198,7 +231,9 @@ func clusterUpFromCli(ctx *cli.Context) error {
 	}
 	updateOnly := ctx.Bool("update-only")
 	disablePortCheck := ctx.Bool("disable-port-check")
-
+	if ctx.Bool("init") {
+		return ClusterInit(context.Background(), rkeConfig, nil, nil, nil, false, "")
+	}
 	_, _, _, _, _, err = ClusterUp(context.Background(), rkeConfig, nil, nil, nil, false, "", updateOnly, disablePortCheck)
 	return err
 }

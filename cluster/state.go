@@ -2,11 +2,16 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/docker/docker/api/types"
 	"github.com/rancher/rke/hosts"
 	"github.com/rancher/rke/k8s"
 	"github.com/rancher/rke/log"
@@ -18,7 +23,17 @@ import (
 	"gopkg.in/yaml.v2"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/cert"
 )
+
+const (
+	stateFileExt = ".rkestate"
+)
+
+type RKEState struct {
+	DesiredState v3.RKEPlan `json:"desiredState"`
+	CurrentState v3.RKEPlan `json:"currentState"`
+}
 
 func (c *Cluster) SaveClusterState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig) error {
 	if len(c.ControlPlaneHosts) > 0 {
@@ -248,4 +263,48 @@ func GetK8sVersion(localConfigPath string, k8sWrapTransport k8s.WrapTransport) (
 		return "", fmt.Errorf("Failed to get Kubernetes server version: %v", err)
 	}
 	return fmt.Sprintf("%#v", *serverVersion), nil
+}
+
+func GetDesiredState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, hostsInfoMap map[string]types.Info) (v3.RKEPlan, error) {
+	// Generate a Plan from RKEConfig
+	DesiredState, err := GeneratePlan(ctx, rkeConfig, hostsInfoMap)
+	if err != nil {
+		return DesiredState, fmt.Errorf("Failed to generate plan for desired state: %v", err)
+	}
+	// Get the certificate Bundle
+	certBundle, err := pki.GenerateRKECerts(ctx, *rkeConfig, "", "")
+	if err != nil {
+		return DesiredState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
+	}
+	DesiredState.CertificatesBundle = make(map[string]v3.CertificatePKI)
+	// Convert rke certs to v3.certs
+	for name, certPKI := range certBundle {
+		certificatePEM := string(cert.EncodeCertPEM(certPKI.Certificate))
+		keyPEM := string(cert.EncodePrivateKeyPEM(certPKI.Key))
+		DesiredState.CertificatesBundle[name] = v3.CertificatePKI{
+			Name:        certPKI.Name,
+			Config:      certPKI.Config,
+			Certificate: certificatePEM,
+			Key:         keyPEM,
+		}
+	}
+	return DesiredState, nil
+}
+
+func (s *RKEState) WriteStateFile(ctx context.Context, statePath string) error {
+	stateFile, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return fmt.Errorf("Failed to Marshal state object: %v", err)
+	}
+	logrus.Debugf("Writing state file: %s", stateFile)
+	if err := ioutil.WriteFile(statePath, []byte(stateFile), 0640); err != nil {
+		return fmt.Errorf("Failed to write state file: %v", err)
+	}
+	log.Infof(ctx, "Successfully Deployed state file at [%s]", statePath)
+	return nil
+}
+
+func getStateFilePath(clusterFilePath string) string {
+	trimmedName := strings.TrimSuffix(clusterFilePath, filepath.Ext(clusterFilePath))
+	return trimmedName + stateFileExt
 }
