@@ -67,20 +67,22 @@ func (c *Cluster) SaveClusterState(ctx context.Context, rkeConfig *v3.RancherKub
 func TransformCertsMap(in map[string]v3.CertificatePKI) map[string]pki.CertificatePKI {
 	out := map[string]pki.CertificatePKI{}
 	for k, v := range in {
-		o := pki.CertificatePKI{}
-		o.Name = v.Name
-		o.Config = v.Config
-		o.CommonName = v.CommonName
-		o.OUName = v.OUName
-		o.EnvName = v.EnvName
-		o.Path = v.Path
-		o.KeyEnvName = v.KeyEnvName
-		o.KeyPath = v.KeyPath
-		o.ConfigPath = v.ConfigPath
 		certs, _ := cert.ParseCertsPEM([]byte(v.Certificate))
-		o.Certificate = certs[0]
 		key, _ := cert.ParsePrivateKeyPEM([]byte(v.Key))
-		o.Key = key.(*rsa.PrivateKey)
+		o := pki.CertificatePKI{
+			ConfigEnvName: v.ConfigEnvName,
+			Name:          v.Name,
+			Config:        v.Config,
+			CommonName:    v.CommonName,
+			OUName:        v.OUName,
+			EnvName:       v.EnvName,
+			Path:          v.Path,
+			KeyEnvName:    v.KeyEnvName,
+			KeyPath:       v.KeyPath,
+			ConfigPath:    v.ConfigPath,
+			Certificate:   certs[0],
+			Key:           key.(*rsa.PrivateKey),
+		}
 		out[k] = o
 	}
 	return out
