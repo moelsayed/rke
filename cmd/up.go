@@ -75,7 +75,7 @@ func ClusterInit(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfi
 		return err
 	}
 
-	desiredState, err := cluster.GenerateDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState)
+	desiredState, err := cluster.RebuildState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState.DesiredState)
 	if err != nil {
 		return err
 	}

@@ -362,22 +362,22 @@ func GetK8sVersion(localConfigPath string, k8sWrapTransport k8s.WrapTransport) (
 	return fmt.Sprintf("%#v", *serverVersion), nil
 }
 
-func GenerateDesiredState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, rkeFullState *RKEFullState) (RKEState, error) {
-	var desiredState RKEState
-	if rkeFullState.DesiredState.CertificatesBundle == nil {
+func RebuildState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, oldState RKEState) (RKEState, error) {
+	var newState RKEState
+	if oldState.CertificatesBundle == nil {
 		// Get the certificate Bundle
 		certBundle, err := pki.GenerateRKECerts(ctx, *rkeConfig, "", "")
 		if err != nil {
-			return desiredState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
+			return newState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
 		}
 		// Convert rke certs to v3.certs
-		desiredState.CertificatesBundle = TransformCertsToV3Certs(certBundle)
+		newState.CertificatesBundle = TransformCertsToV3Certs(certBundle)
 	} else {
-		desiredState.CertificatesBundle = rkeFullState.DesiredState.CertificatesBundle
+		newState.CertificatesBundle = oldState.CertificatesBundle
 	}
-	desiredState.RancherKubernetesEngineConfig = rkeConfig
+	newState.RancherKubernetesEngineConfig = rkeConfig
 
-	return desiredState, nil
+	return newState, nil
 }
 
 func (s *RKEFullState) WriteStateFile(ctx context.Context, statePath string) error {
