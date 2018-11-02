@@ -135,6 +135,9 @@ func (c *Cluster) NewGetClusterState(ctx context.Context, fullState *RKEFullStat
 	currentCluster.Certificates = TransformV3CertsToCerts(fullState.CurrentState.CertificatesBundle)
 	currentCluster.DockerDialerFactory = c.DockerDialerFactory
 	currentCluster.LocalConnDialerFactory = c.LocalConnDialerFactory
+	if err := currentCluster.InvertIndexHosts(); err != nil {
+		return nil, fmt.Errorf("Failed to classify hosts from fetched cluster: %v", err)
+	}
 
 	activeEtcdHosts := currentCluster.EtcdHosts
 	for _, inactiveHost := range c.InactiveHosts {

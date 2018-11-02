@@ -14,7 +14,6 @@ import (
 	"github.com/rancher/rke/pki"
 	"github.com/rancher/types/apis/management.cattle.io/v3"
 	"github.com/urfave/cli"
-	"k8s.io/client-go/util/cert"
 )
 
 var clusterFilePath string
@@ -145,12 +144,12 @@ func ClusterUp(
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
 
-	if len(kubeCluster.ControlPlaneHosts) > 0 {
-		APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
-	}
-	clientCert = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Certificate))
-	clientKey = string(cert.EncodePrivateKeyPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Key))
-	caCrt = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.CACertName].Certificate))
+	// if len(kubeCluster.ControlPlaneHosts) > 0 {
+	// 	APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
+	// }
+	// clientCert = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Certificate))
+	// clientKey = string(cert.EncodePrivateKeyPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Key))
+	// caCrt = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.CACertName].Certificate))
 
 	err = cluster.ReconcileCluster(ctx, kubeCluster, currentCluster, updateOnly)
 	if err != nil {
@@ -159,10 +158,6 @@ func ClusterUp(
 	// update APIURL after reconcile
 	if len(kubeCluster.ControlPlaneHosts) > 0 {
 		APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
-	}
-
-	for k, _ := range kubeCluster.Certificates {
-		fmt.Println(k)
 	}
 
 	err = kubeCluster.SetUpHosts(ctx, false)
