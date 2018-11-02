@@ -40,9 +40,16 @@ type RKEState struct {
 	CertificatesBundle            map[string]v3.CertificatePKI      `json:"certificatesBundle,omitempty"`
 }
 
-func (c *Cluster) NewSaveClusterSate(ctx context.Context) error {
-	return nil
+func (c *Cluster) UpdateClusterSate(ctx context.Context, fullState *RKEFullState) error {
+	currentState, err := RebuildState(ctx, &c.RancherKubernetesEngineConfig, fullState.CurrentState)
+	if err != nil {
+		return err
+	}
+	currentState.CertificatesBundle = TransformCertsToV3Certs(c.Certificates)
+	fullState.CurrentState = currentState
+	return fullState.WriteStateFile(ctx, c.StateFilePath)
 }
+
 func (c *Cluster) SaveClusterState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig) error {
 	if len(c.ControlPlaneHosts) > 0 {
 		// Reinitialize kubernetes Client

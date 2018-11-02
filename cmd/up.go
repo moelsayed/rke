@@ -187,7 +187,8 @@ func ClusterUp(
 
 	// 1. save cluster certificates
 	// 2. save cluster state
-	err = kubeCluster.SaveClusterState(ctx, &kubeCluster.RancherKubernetesEngineConfig)
+	//err = kubeCluster.SaveClusterState(ctx, &kubeCluster.RancherKubernetesEngineConfig)
+	err = kubeCluster.UpdateClusterSate(ctx, clusterState)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
