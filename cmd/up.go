@@ -67,19 +67,21 @@ func UpCommand() cli.Command {
 
 func ClusterInit(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, configDir string) error {
 	log.Infof(ctx, "Initiating Kubernetes cluster")
+	stateFilePath := cluster.GetStateFilePath(clusterFilePath, configDir)
+	rkeFullState, _ := cluster.ReadStateFile(ctx, stateFilePath)
 	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, nil, nil, nil)
 	if err != nil {
 		return err
 	}
-	desiredState, err := cluster.GenerateDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig)
+	desiredState, err := cluster.GenerateDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState)
 	if err != nil {
 		return err
 	}
 	rkeState := cluster.RKEFullState{
 		DesiredState: desiredState,
-		CurrentState: cluster.RKEState{},
+		CurrentState: rkeFullState.CurrentState,
 	}
-	return rkeState.WriteStateFile(ctx, clusterFilePath, configDir)
+	return rkeState.WriteStateFile(ctx, stateFilePath)
 }
 
 func ClusterUp(

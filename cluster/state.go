@@ -35,8 +35,8 @@ type RKEFullState struct {
 }
 
 type RKEState struct {
-	RancherKubernetesEngineConfig v3.RancherKubernetesEngineConfig `json:"rkeConfig,omitempty"`
-	CertificatesBundle            map[string]v3.CertificatePKI     `json:"certificatesBundle,omitempty"`
+	RancherKubernetesEngineConfig *v3.RancherKubernetesEngineConfig `json:"rkeConfig,omitempty"`
+	CertificatesBundle            map[string]v3.CertificatePKI      `json:"certificatesBundle,omitempty"`
 }
 
 func (c *Cluster) SaveClusterState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig) error {
@@ -269,42 +269,44 @@ func GetK8sVersion(localConfigPath string, k8sWrapTransport k8s.WrapTransport) (
 	return fmt.Sprintf("%#v", *serverVersion), nil
 }
 
-func GenerateDesiredState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig) (RKEState, error) {
+func GenerateDesiredState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, rkeFullState *RKEFullState) (RKEState, error) {
 	var desiredState RKEState
-	// Get the certificate Bundle
-	certBundle, err := pki.GenerateRKECerts(ctx, *rkeConfig, "", "")
-	if err != nil {
-		return desiredState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
-	}
-	// Convert rke certs to v3.certs
-	certificatesBundle := make(map[string]v3.CertificatePKI)
-	for name, certPKI := range certBundle {
-		certificatePEM := string(cert.EncodeCertPEM(certPKI.Certificate))
-		keyPEM := string(cert.EncodePrivateKeyPEM(certPKI.Key))
-		certificatesBundle[name] = v3.CertificatePKI{
-			Name:          certPKI.Name,
-			Config:        certPKI.Config,
-			Certificate:   certificatePEM,
-			Key:           keyPEM,
-			EnvName:       certPKI.EnvName,
-			KeyEnvName:    certPKI.KeyEnvName,
-			ConfigEnvName: certPKI.ConfigEnvName,
-			Path:          certPKI.Path,
-			KeyPath:       certPKI.KeyPath,
-			ConfigPath:    certPKI.ConfigPath,
-			CommonName:    certPKI.CommonName,
-			OUName:        certPKI.OUName,
+	if rkeFullState.DesiredState.CertificatesBundle == nil {
+		// Get the certificate Bundle
+		certBundle, err := pki.GenerateRKECerts(ctx, *rkeConfig, "", "")
+		if err != nil {
+			return desiredState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
 		}
+		// Convert rke certs to v3.certs
+		certificatesBundle := make(map[string]v3.CertificatePKI)
+		for name, certPKI := range certBundle {
+			certificatePEM := string(cert.EncodeCertPEM(certPKI.Certificate))
+			keyPEM := string(cert.EncodePrivateKeyPEM(certPKI.Key))
+			certificatesBundle[name] = v3.CertificatePKI{
+				Name:          certPKI.Name,
+				Config:        certPKI.Config,
+				Certificate:   certificatePEM,
+				Key:           keyPEM,
+				EnvName:       certPKI.EnvName,
+				KeyEnvName:    certPKI.KeyEnvName,
+				ConfigEnvName: certPKI.ConfigEnvName,
+				Path:          certPKI.Path,
+				KeyPath:       certPKI.KeyPath,
+				ConfigPath:    certPKI.ConfigPath,
+				CommonName:    certPKI.CommonName,
+				OUName:        certPKI.OUName,
+			}
+		}
+		desiredState.CertificatesBundle = certificatesBundle
+	} else {
+		desiredState.CertificatesBundle = rkeFullState.DesiredState.CertificatesBundle
 	}
-	desiredState.RancherKubernetesEngineConfig = *rkeConfig
-	desiredState.CertificatesBundle = certificatesBundle
+	desiredState.RancherKubernetesEngineConfig = rkeConfig
 
 	return desiredState, nil
 }
 
-func (s *RKEFullState) WriteStateFile(ctx context.Context, clusterFilePath, configDir string) error {
-	statePath := getStateFilePath(clusterFilePath, configDir)
-
+func (s *RKEFullState) WriteStateFile(ctx context.Context, statePath string) error {
 	stateFile, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return fmt.Errorf("Failed to Marshal state object: %v", err)
@@ -317,7 +319,7 @@ func (s *RKEFullState) WriteStateFile(ctx context.Context, clusterFilePath, conf
 	return nil
 }
 
-func getStateFilePath(configPath, configDir string) string {
+func GetStateFilePath(configPath, configDir string) string {
 	baseDir := filepath.Dir(configPath)
 	if len(configDir) > 0 {
 		baseDir = filepath.Dir(configDir)
@@ -327,4 +329,25 @@ func getStateFilePath(configPath, configDir string) string {
 	fullPath := fmt.Sprintf("%s%s", baseDir, fileName)
 	trimmedName := strings.TrimSuffix(fullPath, filepath.Ext(fullPath))
 	return trimmedName + stateFileExt
+}
+
+func ReadStateFile(ctx context.Context, statePath string) (*RKEFullState, error) {
+	rkeFullState := &RKEFullState{}
+	fp, err := filepath.Abs(statePath)
+	if err != nil {
+		return rkeFullState, fmt.Errorf("failed to lookup current directory name: %v", err)
+	}
+	file, err := os.Open(fp)
+	if err != nil {
+		return rkeFullState, fmt.Errorf("Can not find RKE state file: %v", err)
+	}
+	defer file.Close()
+	buf, err := ioutil.ReadAll(file)
+	if err != nil {
+		return rkeFullState, fmt.Errorf("failed to read file: %v", err)
+	}
+	if err := json.Unmarshal(buf, rkeFullState); err != nil {
+		return rkeFullState, fmt.Errorf("failed to unmarshal the state file: %v", err)
+	}
+	return rkeFullState, nil
 }

@@ -154,7 +154,7 @@ func ParseCluster(
 	k8sWrapTransport k8s.WrapTransport) (*Cluster, error) {
 	var err error
 	// get state filepath
-	stateFilePath := getStateFilePath(clusterFilePath, configDir)
+	stateFilePath := GetStateFilePath(clusterFilePath, configDir)
 	c := &Cluster{
 		RancherKubernetesEngineConfig: *rkeConfig,
 		ConfigPath:                    clusterFilePath,
