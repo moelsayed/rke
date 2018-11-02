@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -63,84 +64,147 @@ func (c *Cluster) SaveClusterState(ctx context.Context, rkeConfig *v3.RancherKub
 	}
 	return nil
 }
+func TransformCertsMap(in map[string]v3.CertificatePKI) map[string]pki.CertificatePKI {
+	out := map[string]pki.CertificatePKI{}
+	for k, v := range in {
+		o := pki.CertificatePKI{}
+		o.Name = v.Name
+		o.Config = v.Config
+		o.CommonName = v.CommonName
+		o.OUName = v.OUName
+		o.EnvName = v.EnvName
+		o.Path = v.Path
+		o.KeyEnvName = v.KeyEnvName
+		o.KeyPath = v.KeyPath
+		o.ConfigPath = v.ConfigPath
+		certs, _ := cert.ParseCertsPEM([]byte(v.Certificate))
+		o.Certificate = certs[0]
+		key, _ := cert.ParsePrivateKeyPEM([]byte(v.Key))
+		o.Key = key.(*rsa.PrivateKey)
+		out[k] = o
+	}
+	return out
+}
 
-func (c *Cluster) GetClusterState(ctx context.Context) (*Cluster, error) {
+func (c *Cluster) NewGetClusterState(ctx context.Context, fullState *RKEFullState, configDir string) (*Cluster, error) {
 	var err error
-	var currentCluster *Cluster
+	currentCluster := &Cluster{}
+	// no current state, take me home
+	if fullState.CurrentState.RancherKubernetesEngineConfig == nil {
+		return currentCluster, nil
+	}
+	// Do I still need to check and fix kube config ?
 
-	// check if local kubeconfig file exists
-	if _, err = os.Stat(c.LocalKubeConfigPath); !os.IsNotExist(err) {
-		log.Infof(ctx, "[state] Found local kube config file, trying to get state from cluster")
+	currentCluster = InitClusterObject(ctx, fullState.CurrentState.RancherKubernetesEngineConfig, c.ConfigPath, configDir)
+	currentCluster.Certificates = TransformCertsMap(fullState.CurrentState.CertificatesBundle)
+	currentCluster.DockerDialerFactory = c.DockerDialerFactory
+	currentCluster.LocalConnDialerFactory = c.LocalConnDialerFactory
 
-		// to handle if current local admin is down and we need to use new cp from the list
-		if !isLocalConfigWorking(ctx, c.LocalKubeConfigPath, c.K8sWrapTransport) {
-			if err := rebuildLocalAdminConfig(ctx, c); err != nil {
+	activeEtcdHosts := currentCluster.EtcdHosts
+	for _, inactiveHost := range c.InactiveHosts {
+		activeEtcdHosts = removeFromHosts(inactiveHost, activeEtcdHosts)
+	}
+	// make sure I have all the etcd certs, We need handle dialer failure for etcd nodes https://github.com/rancher/rancher/issues/12898
+	for _, host := range activeEtcdHosts {
+		certName := pki.GetEtcdCrtName(host.InternalAddress)
+		if (currentCluster.Certificates[certName] == pki.CertificatePKI{}) {
+			if currentCluster.Certificates, err = pki.RegenerateEtcdCertificate(ctx,
+				currentCluster.Certificates,
+				host,
+				activeEtcdHosts,
+				currentCluster.ClusterDomain,
+				currentCluster.KubernetesServiceIP); err != nil {
 				return nil, err
 			}
 		}
-
-		// initiate kubernetes client
-		c.KubeClient, err = k8s.NewClient(c.LocalKubeConfigPath, c.K8sWrapTransport)
-		if err != nil {
-			log.Warnf(ctx, "Failed to initiate new Kubernetes Client: %v", err)
-			return nil, nil
-		}
-		// Get previous kubernetes state
-		currentCluster, err = getStateFromKubernetes(ctx, c.KubeClient, c.LocalKubeConfigPath)
-		if err != nil {
-			// attempting to fetch state from nodes
-			uniqueHosts := hosts.GetUniqueHostList(c.EtcdHosts, c.ControlPlaneHosts, c.WorkerHosts)
-			currentCluster = getStateFromNodes(ctx, uniqueHosts, c.SystemImages.Alpine, c.PrivateRegistriesMap)
-		}
-		// Get previous kubernetes certificates
-		if currentCluster != nil {
-			if err := currentCluster.InvertIndexHosts(); err != nil {
-				return nil, fmt.Errorf("Failed to classify hosts from fetched cluster: %v", err)
-			}
-			activeEtcdHosts := currentCluster.EtcdHosts
-			for _, inactiveHost := range c.InactiveHosts {
-				activeEtcdHosts = removeFromHosts(inactiveHost, activeEtcdHosts)
-			}
-			currentCluster.Certificates, err = getClusterCerts(ctx, c.KubeClient, activeEtcdHosts)
-			// if getting certificates from k8s failed then we attempt to fetch the backup certs
-			if err != nil {
-				backupHosts := hosts.GetUniqueHostList(c.EtcdHosts, c.ControlPlaneHosts, nil)
-				currentCluster.Certificates, err = fetchBackupCertificates(ctx, backupHosts, c)
-				if err != nil {
-					return nil, fmt.Errorf("Failed to Get Kubernetes certificates: %v", err)
-				}
-				if currentCluster.Certificates != nil {
-					log.Infof(ctx, "[certificates] Certificate backup found on backup hosts")
-				}
-			}
-			currentCluster.DockerDialerFactory = c.DockerDialerFactory
-			currentCluster.LocalConnDialerFactory = c.LocalConnDialerFactory
-
-			// make sure I have all the etcd certs, We need handle dialer failure for etcd nodes https://github.com/rancher/rancher/issues/12898
-			for _, host := range activeEtcdHosts {
-				certName := pki.GetEtcdCrtName(host.InternalAddress)
-				if (currentCluster.Certificates[certName] == pki.CertificatePKI{}) {
-					if currentCluster.Certificates, err = pki.RegenerateEtcdCertificate(ctx,
-						currentCluster.Certificates,
-						host,
-						activeEtcdHosts,
-						currentCluster.ClusterDomain,
-						currentCluster.KubernetesServiceIP); err != nil {
-						return nil, err
-					}
-				}
-			}
-			// setting cluster defaults for the fetched cluster as well
-			currentCluster.setClusterDefaults(ctx)
-
-			currentCluster.Certificates, err = regenerateAPICertificate(c, currentCluster.Certificates)
-			if err != nil {
-				return nil, fmt.Errorf("Failed to regenerate KubeAPI certificate %v", err)
-			}
-		}
 	}
+	currentCluster.Certificates, err = regenerateAPICertificate(c, currentCluster.Certificates)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to regenerate KubeAPI certificate %v", err)
+	}
+
+	currentCluster.setClusterDefaults(ctx)
+
 	return currentCluster, nil
 }
+
+// func (c *Cluster) GetClusterState(ctx context.Context) (*Cluster, error) {
+// 	var err error
+// 	var currentCluster *Cluster
+//
+// 	// check if local kubeconfig file exists
+// 	if _, err = os.Stat(c.LocalKubeConfigPath); !os.IsNotExist(err) {
+// 		log.Infof(ctx, "[state] Found local kube config file, trying to get state from cluster")
+//
+// 		// to handle if current local admin is down and we need to use new cp from the list
+// 		if !isLocalConfigWorking(ctx, c.LocalKubeConfigPath, c.K8sWrapTransport) {
+// 			if err := rebuildLocalAdminConfig(ctx, c); err != nil {
+// 				return nil, err
+// 			}
+// 		}
+//
+// 		// initiate kubernetes client
+// 		c.KubeClient, err = k8s.NewClient(c.LocalKubeConfigPath, c.K8sWrapTransport)
+// 		if err != nil {
+// 			log.Warnf(ctx, "Failed to initiate new Kubernetes Client: %v", err)
+// 			return nil, nil
+// 		}
+// 		// Get previous kubernetes state
+// 		currentCluster, err = getStateFromKubernetes(ctx, c.KubeClient, c.LocalKubeConfigPath)
+// 		if err != nil {
+// 			// attempting to fetch state from nodes
+// 			uniqueHosts := hosts.GetUniqueHostList(c.EtcdHosts, c.ControlPlaneHosts, c.WorkerHosts)
+// 			currentCluster = getStateFromNodes(ctx, uniqueHosts, c.SystemImages.Alpine, c.PrivateRegistriesMap)
+// 		}
+// 		// Get previous kubernetes certificates
+// 		if currentCluster != nil {
+// 			if err := currentCluster.InvertIndexHosts(); err != nil {
+// 				return nil, fmt.Errorf("Failed to classify hosts from fetched cluster: %v", err)
+// 			}
+// 			activeEtcdHosts := currentCluster.EtcdHosts
+// 			for _, inactiveHost := range c.InactiveHosts {
+// 				activeEtcdHosts = removeFromHosts(inactiveHost, activeEtcdHosts)
+// 			}
+// 			currentCluster.Certificates, err = getClusterCerts(ctx, c.KubeClient, activeEtcdHosts)
+// 			// if getting certificates from k8s failed then we attempt to fetch the backup certs
+// 			if err != nil {
+// 				backupHosts := hosts.GetUniqueHostList(c.EtcdHosts, c.ControlPlaneHosts, nil)
+// 				currentCluster.Certificates, err = fetchBackupCertificates(ctx, backupHosts, c)
+// 				if err != nil {
+// 					return nil, fmt.Errorf("Failed to Get Kubernetes certificates: %v", err)
+// 				}
+// 				if currentCluster.Certificates != nil {
+// 					log.Infof(ctx, "[certificates] Certificate backup found on backup hosts")
+// 				}
+// 			}
+// 			currentCluster.DockerDialerFactory = c.DockerDialerFactory
+// 			currentCluster.LocalConnDialerFactory = c.LocalConnDialerFactory
+//
+// 			// make sure I have all the etcd certs, We need handle dialer failure for etcd nodes https://github.com/rancher/rancher/issues/12898
+// 			for _, host := range activeEtcdHosts {
+// 				certName := pki.GetEtcdCrtName(host.InternalAddress)
+// 				if (currentCluster.Certificates[certName] == pki.CertificatePKI{}) {
+// 					if currentCluster.Certificates, err = pki.RegenerateEtcdCertificate(ctx,
+// 						currentCluster.Certificates,
+// 						host,
+// 						activeEtcdHosts,
+// 						currentCluster.ClusterDomain,
+// 						currentCluster.KubernetesServiceIP); err != nil {
+// 						return nil, err
+// 					}
+// 				}
+// 			}
+// 			// setting cluster defaults for the fetched cluster as well
+// 			currentCluster.setClusterDefaults(ctx)
+//
+// 			currentCluster.Certificates, err = regenerateAPICertificate(c, currentCluster.Certificates)
+// 			if err != nil {
+// 				return nil, fmt.Errorf("Failed to regenerate KubeAPI certificate %v", err)
+// 			}
+// 		}
+// 	}
+// 	return currentCluster, nil
+// }
 
 func saveStateToKubernetes(ctx context.Context, kubeClient *kubernetes.Clientset, kubeConfigPath string, rkeConfig *v3.RancherKubernetesEngineConfig) error {
 	log.Infof(ctx, "[state] Saving cluster state to Kubernetes")

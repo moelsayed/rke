@@ -69,10 +69,12 @@ func ClusterInit(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfi
 	log.Infof(ctx, "Initiating Kubernetes cluster")
 	stateFilePath := cluster.GetStateFilePath(clusterFilePath, configDir)
 	rkeFullState, _ := cluster.ReadStateFile(ctx, stateFilePath)
+
 	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, nil, nil, nil)
 	if err != nil {
 		return err
 	}
+
 	desiredState, err := cluster.GenerateDesiredState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState)
 	if err != nil {
 		return err
@@ -93,7 +95,16 @@ func ClusterUp(
 
 	log.Infof(ctx, "Building Kubernetes cluster")
 	var APIURL, caCrt, clientCert, clientKey string
-	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
+
+	// is tehre any chance we can store the cluster object here instead of the rke config ?
+	// I can change the function signiture, should be simpler
+	// No, I would stil have to parse the cluster
+	clusterState, err := cluster.ReadStateFile(ctx, cluster.GetStateFilePath(clusterFilePath, configDir))
+	if err != nil {
+		return APIURL, caCrt, clientCert, clientKey, nil, err
+	}
+
+	kubeCluster, err := cluster.ParseCluster(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
@@ -103,16 +114,32 @@ func ClusterUp(
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
 
-	currentCluster, err := kubeCluster.GetClusterState(ctx)
+	// 1. fix the kube config if it's broken
+	// 2. connect to k8s
+	// 3. get the state from k8s
+	// 4. if not on k8s we get it from the nodes.
+	// 5. get cluster certificates
+	// 6. update etcd hosts certs
+	// 7. set cluster defaults
+	// 8. regenerate api certificates
+	currentCluster, err := kubeCluster.NewGetClusterState(ctx)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
+
 	if !disablePortCheck {
 		if err = kubeCluster.CheckClusterPorts(ctx, currentCluster); err != nil {
 			return APIURL, caCrt, clientCert, clientKey, nil, err
 		}
 	}
 
+	// 0. check on the auth strategy
+	// 1. if current cluster != nil copy over certs to kubeCluster
+	// 1.1. if there is no pki.RequestHeaderCACertName, generate it
+	// 2. fi there is no current_cluster try to fetch backup
+	// 2.1 if you found backup, handle weird fucking cases
+	// 3. if you don't find backup, generate new certs!
+	// 4. deploy backups
 	err = cluster.SetUpAuthentication(ctx, kubeCluster, currentCluster)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
@@ -223,6 +250,9 @@ func clusterUpFromCli(ctx *cli.Context) error {
 	disablePortCheck := ctx.Bool("disable-port-check")
 	if ctx.Bool("init") {
 		return ClusterInit(context.Background(), rkeConfig, "")
+	}
+	if err := ClusterInit(context.Background(), rkeConfig, ""); err != nil {
+		return err
 	}
 	_, _, _, _, _, err = ClusterUp(context.Background(), rkeConfig, nil, nil, nil, false, "", updateOnly, disablePortCheck)
 	return err

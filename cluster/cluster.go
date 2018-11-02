@@ -145,6 +145,13 @@ func ParseConfig(clusterFile string) (*v3.RancherKubernetesEngineConfig, error) 
 	return &rkeConfig, nil
 }
 
+func InitClusterObject(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, clusterFilePath, configDir string) *Cluster {
+	return &Cluster{
+		RancherKubernetesEngineConfig: *rkeConfig,
+		ConfigPath:                    clusterFilePath,
+		StateFilePath:                 GetStateFilePath(clusterFilePath, configDir),
+	}
+}
 func ParseCluster(
 	ctx context.Context,
 	rkeConfig *v3.RancherKubernetesEngineConfig,
@@ -154,16 +161,12 @@ func ParseCluster(
 	k8sWrapTransport k8s.WrapTransport) (*Cluster, error) {
 	var err error
 	// get state filepath
-	stateFilePath := GetStateFilePath(clusterFilePath, configDir)
-	c := &Cluster{
-		RancherKubernetesEngineConfig: *rkeConfig,
-		ConfigPath:                    clusterFilePath,
-		StateFilePath:                 stateFilePath,
-		DockerDialerFactory:           dockerDialerFactory,
-		LocalConnDialerFactory:        localConnDialerFactory,
-		PrivateRegistriesMap:          make(map[string]v3.PrivateRegistry),
-		K8sWrapTransport:              k8sWrapTransport,
-	}
+	c := InitClusterObject(ctx, rkeConfig, clusterFilePath, configDir)
+	c.DockerDialerFactory = dockerDialerFactory
+	c.LocalConnDialerFactory = localConnDialerFactory
+	c.PrivateRegistriesMap = make(map[string]v3.PrivateRegistry)
+	c.K8sWrapTransport = k8sWrapTransport
+
 	// Setting cluster Defaults
 	c.setClusterDefaults(ctx)
 

@@ -19,6 +19,13 @@ import (
 	"k8s.io/client-go/util/cert"
 )
 
+func NewSetUpAuthentication(ctx context.Context, kubeCluster, currentCluster *Cluster) error {
+	if kubeCluster.Authentication.Strategy == X509AuthenticationProvider {
+
+	}
+	return nil
+}
+
 func SetUpAuthentication(ctx context.Context, kubeCluster, currentCluster *Cluster) error {
 	if kubeCluster.Authentication.Strategy == X509AuthenticationProvider {
 		var err error
