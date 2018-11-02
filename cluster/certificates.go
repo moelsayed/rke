@@ -25,7 +25,7 @@ func NewSetUpAuthentication(ctx context.Context, kubeCluster, currentCluster *Cl
 			kubeCluster.Certificates = currentCluster.Certificates
 			return nil
 		}
-		kubeCluster.Certificates = TransformCertsMap(fullState.DesiredState.CertificatesBundle)
+		kubeCluster.Certificates = TransformV3CertsToCerts(fullState.DesiredState.CertificatesBundle)
 		return nil
 	}
 	return nil
