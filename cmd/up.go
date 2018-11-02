@@ -122,11 +122,10 @@ func ClusterUp(
 	// 6. update etcd hosts certs
 	// 7. set cluster defaults
 	// 8. regenerate api certificates
-	currentCluster, err := kubeCluster.NewGetClusterState(ctx)
+	currentCluster, err := kubeCluster.NewGetClusterState(ctx, clusterState, configDir)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
-
 	if !disablePortCheck {
 		if err = kubeCluster.CheckClusterPorts(ctx, currentCluster); err != nil {
 			return APIURL, caCrt, clientCert, clientKey, nil, err
@@ -140,10 +139,12 @@ func ClusterUp(
 	// 2.1 if you found backup, handle weird fucking cases
 	// 3. if you don't find backup, generate new certs!
 	// 4. deploy backups
-	err = cluster.SetUpAuthentication(ctx, kubeCluster, currentCluster)
+	// This looks very weird now..
+	err = cluster.NewSetUpAuthentication(ctx, kubeCluster, currentCluster, clusterState)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
+
 	if len(kubeCluster.ControlPlaneHosts) > 0 {
 		APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
 	}
@@ -159,6 +160,11 @@ func ClusterUp(
 	if len(kubeCluster.ControlPlaneHosts) > 0 {
 		APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
 	}
+
+	for k, _ := range kubeCluster.Certificates {
+		fmt.Println(k)
+	}
+
 	err = kubeCluster.SetUpHosts(ctx, false)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err

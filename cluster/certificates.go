@@ -19,9 +19,14 @@ import (
 	"k8s.io/client-go/util/cert"
 )
 
-func NewSetUpAuthentication(ctx context.Context, kubeCluster, currentCluster *Cluster) error {
+func NewSetUpAuthentication(ctx context.Context, kubeCluster, currentCluster *Cluster, fullState *RKEFullState) error {
 	if kubeCluster.Authentication.Strategy == X509AuthenticationProvider {
-
+		if currentCluster != nil {
+			kubeCluster.Certificates = currentCluster.Certificates
+			return nil
+		}
+		kubeCluster.Certificates = TransformCertsMap(fullState.DesiredState.CertificatesBundle)
+		return nil
 	}
 	return nil
 }
