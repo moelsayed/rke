@@ -124,20 +124,20 @@ func TransformCertsToV3Certs(in map[string]pki.CertificatePKI) map[string]v3.Cer
 }
 func (c *Cluster) NewGetClusterState(ctx context.Context, fullState *RKEFullState, configDir string) (*Cluster, error) {
 	var err error
-	currentCluster := &Cluster{}
 	// no current state, take me home
 	if fullState.CurrentState.RancherKubernetesEngineConfig == nil {
 		return nil, nil
 	}
 	// Do I still need to check and fix kube config ?
 
-	currentCluster = InitClusterObject(ctx, fullState.CurrentState.RancherKubernetesEngineConfig, c.ConfigPath, configDir)
-	currentCluster.Certificates = TransformV3CertsToCerts(fullState.CurrentState.CertificatesBundle)
-	currentCluster.DockerDialerFactory = c.DockerDialerFactory
-	currentCluster.LocalConnDialerFactory = c.LocalConnDialerFactory
-	if err := currentCluster.InvertIndexHosts(); err != nil {
-		return nil, fmt.Errorf("Failed to classify hosts from fetched cluster: %v", err)
+	currentCluster, err := InitClusterObject(ctx, fullState.CurrentState.RancherKubernetesEngineConfig, c.ConfigPath, configDir)
+	if err != nil {
+		return nil, err
 	}
+
+	currentCluster.Certificates = TransformV3CertsToCerts(fullState.CurrentState.CertificatesBundle)
+
+	currentCluster.SetupDialers(ctx, c.DockerDialerFactory, c.LocalConnDialerFactory, c.K8sWrapTransport)
 
 	activeEtcdHosts := currentCluster.EtcdHosts
 	for _, inactiveHost := range c.InactiveHosts {

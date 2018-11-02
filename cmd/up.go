@@ -102,8 +102,12 @@ func ClusterUp(
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
-
-	kubeCluster, err := cluster.ParseCluster(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
+	kubeCluster, err := cluster.InitClusterObject(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig, clusterFilePath, configDir)
+	if err != nil {
+		return APIURL, caCrt, clientCert, clientKey, nil, err
+	}
+	err = kubeCluster.SetupDialers(ctx, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
+	// kubeCluster, err := cluster.ParseCluster(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
