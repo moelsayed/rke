@@ -84,8 +84,11 @@ func RotateRKECertificates(
 	local bool, configDir string, components []string, rotateCACerts bool) error {
 
 	log.Infof(ctx, "Rotating Kubernetes cluster certificates")
-	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
+	kubeCluster, err := cluster.InitClusterObject(ctx, rkeConfig, clusterFilePath, configDir)
 	if err != nil {
+		return err
+	}
+	if err := kubeCluster.SetupDialers(ctx, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport); err != nil {
 		return err
 	}
 

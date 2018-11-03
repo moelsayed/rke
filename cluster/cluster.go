@@ -201,24 +201,6 @@ func (c *Cluster) SetupDialers(ctx context.Context, dockerDialerFactory,
 	return nil
 }
 
-func ParseCluster(
-	ctx context.Context,
-	rkeConfig *v3.RancherKubernetesEngineConfig,
-	clusterFilePath, configDir string,
-	dockerDialerFactory,
-	localConnDialerFactory hosts.DialerFactory,
-	k8sWrapTransport k8s.WrapTransport) (*Cluster, error) {
-	var err error
-	// get state filepath
-	c, err := InitClusterObject(ctx, rkeConfig, clusterFilePath, configDir)
-	if err != nil {
-		return nil, err
-	}
-	c.SetupDialers(ctx, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
-
-	return c, nil
-}
-
 func rebuildLocalAdminConfig(ctx context.Context, kubeCluster *Cluster) error {
 	if len(kubeCluster.ControlPlaneHosts) == 0 {
 		return nil
@@ -287,8 +269,11 @@ func getLocalAdminConfigWithNewAddress(localConfigPath, cpAddress string, cluste
 
 func ApplyAuthzResources(ctx context.Context, rkeConfig v3.RancherKubernetesEngineConfig, clusterFilePath, configDir string, k8sWrapTransport k8s.WrapTransport) error {
 	// dialer factories are not needed here since we are not uses docker only k8s jobs
-	kubeCluster, err := ParseCluster(ctx, &rkeConfig, clusterFilePath, configDir, nil, nil, k8sWrapTransport)
+	kubeCluster, err := InitClusterObject(ctx, &rkeConfig, clusterFilePath, configDir)
 	if err != nil {
+		return err
+	}
+	if err := kubeCluster.SetupDialers(ctx, nil, nil, k8sWrapTransport); err != nil {
 		return err
 	}
 	if len(kubeCluster.ControlPlaneHosts) == 0 {
@@ -447,8 +432,11 @@ func ConfigureCluster(
 	k8sWrapTransport k8s.WrapTransport,
 	useKubectl bool) error {
 	// dialer factories are not needed here since we are not uses docker only k8s jobs
-	kubeCluster, err := ParseCluster(ctx, &rkeConfig, clusterFilePath, configDir, nil, nil, k8sWrapTransport)
+	kubeCluster, err := InitClusterObject(ctx, &rkeConfig, clusterFilePath, configDir)
 	if err != nil {
+		return err
+	}
+	if err := kubeCluster.SetupDialers(ctx, nil, nil, k8sWrapTransport); err != nil {
 		return err
 	}
 	kubeCluster.UseKubectlDeploy = useKubectl
