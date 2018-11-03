@@ -173,29 +173,31 @@ func reconcileEtcd(ctx context.Context, currentCluster, kubeCluster *Cluster, ku
 	}
 	log.Infof(ctx, "[reconcile] Check etcd hosts to be added")
 	etcdToAdd := hosts.GetToAddHosts(currentCluster.EtcdHosts, kubeCluster.EtcdHosts)
-	crtMap := currentCluster.Certificates
-	var err error
+	// crtMap := currentCluster.Certificates
+	// var err error
+	// for _, etcdHost := range etcdToAdd {
+	// 	kubeCluster.UpdateWorkersOnly = false
+	// 	etcdHost.ToAddEtcdMember = true
+	// 	// 	// Generate new certificate for the new etcd member
+	// 	// 	crtMap, err = pki.RegenerateEtcdCertificate(
+	// 	// 		ctx,
+	// 	// 		crtMap,
+	// 	// 		etcdHost,
+	// 	// 		kubeCluster.EtcdHosts,
+	// 	// 		kubeCluster.ClusterDomain,
+	// 	// 		kubeCluster.KubernetesServiceIP)
+	// 	// 	if err != nil {
+	// 	// 		return err
+	// 	// 	}
+	// }
+	// currentCluster.Certificates = crtMap
 	for _, etcdHost := range etcdToAdd {
 		kubeCluster.UpdateWorkersOnly = false
 		etcdHost.ToAddEtcdMember = true
-		// Generate new certificate for the new etcd member
-		crtMap, err = pki.RegenerateEtcdCertificate(
-			ctx,
-			crtMap,
-			etcdHost,
-			kubeCluster.EtcdHosts,
-			kubeCluster.ClusterDomain,
-			kubeCluster.KubernetesServiceIP)
-		if err != nil {
-			return err
-		}
-	}
-	currentCluster.Certificates = crtMap
-	for _, etcdHost := range etcdToAdd {
 		// deploy certificates on new etcd host
-		if err := pki.DeployCertificatesOnHost(ctx, etcdHost, currentCluster.Certificates, kubeCluster.SystemImages.CertDownloader, pki.CertPathPrefix, kubeCluster.PrivateRegistriesMap); err != nil {
-			return err
-		}
+		// if err := pki.DeployCertificatesOnHost(ctx, etcdHost, currentCluster.Certificates, kubeCluster.SystemImages.CertDownloader, pki.CertPathPrefix, kubeCluster.PrivateRegistriesMap); err != nil {
+		// 	return err
+		// }
 
 		// Check if the host already part of the cluster -- this will cover cluster with lost quorum
 		isEtcdMember, err := services.IsEtcdMember(ctx, etcdHost, kubeCluster.EtcdHosts, currentCluster.LocalConnDialerFactory, clientCert, clientkey)
