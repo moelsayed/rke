@@ -69,18 +69,18 @@ func ClusterInit(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfi
 	stateFilePath := cluster.GetStateFilePath(clusterFilePath, configDir)
 	rkeFullState, _ := cluster.ReadStateFile(ctx, stateFilePath)
 
-	kubeCluster, err := cluster.ParseCluster(ctx, rkeConfig, clusterFilePath, configDir, nil, nil, nil)
+	kubeCluster, err := cluster.InitClusterObject(ctx, rkeConfig, clusterFilePath, configDir)
 	if err != nil {
 		return err
 	}
 
-	desiredState, err := cluster.RebuildState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState.DesiredState)
+	fullState, err := cluster.RebuildState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState)
 	if err != nil {
 		return err
 	}
 	rkeState := cluster.RKEFullState{
-		DesiredState: desiredState,
-		CurrentState: rkeFullState.CurrentState,
+		DesiredState: fullState.DesiredState,
+		CurrentState: fullState.CurrentState,
 	}
 	return rkeState.WriteStateFile(ctx, stateFilePath)
 }
@@ -107,7 +107,6 @@ func ClusterUp(
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
 	err = kubeCluster.SetupDialers(ctx, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
-	// kubeCluster, err := cluster.ParseCluster(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig, clusterFilePath, configDir, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
@@ -187,7 +186,7 @@ func ClusterUp(
 	// 1. save cluster certificates
 	// 2. save cluster state
 	//err = kubeCluster.SaveClusterState(ctx, &kubeCluster.RancherKubernetesEngineConfig)
-	err = kubeCluster.UpdateClusterSate(ctx, clusterState)
+	err = kubeCluster.UpdateClusterState(ctx, clusterState)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}

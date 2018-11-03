@@ -40,13 +40,14 @@ type RKEState struct {
 	CertificatesBundle            map[string]v3.CertificatePKI      `json:"certificatesBundle,omitempty"`
 }
 
-func (c *Cluster) UpdateClusterSate(ctx context.Context, fullState *RKEFullState) error {
-	currentState, err := RebuildState(ctx, &c.RancherKubernetesEngineConfig, fullState.CurrentState)
-	if err != nil {
-		return err
-	}
-	currentState.CertificatesBundle = TransformCertsToV3Certs(c.Certificates)
-	fullState.CurrentState = currentState
+// UpdateClusterState will update the cluster's current state
+func (c *Cluster) UpdateClusterState(ctx context.Context, fullState *RKEFullState) error {
+	// there is no need for this as we only match the current with the desired
+	// fullState, err := RebuildState(ctx, &c.RancherKubernetesEngineConfig, fullState)
+	// if err != nil {
+	// 	return err
+	// }
+	fullState.CurrentState = fullState.DesiredState
 	return fullState.WriteStateFile(ctx, c.StateFilePath)
 }
 
@@ -372,21 +373,34 @@ func GetK8sVersion(localConfigPath string, k8sWrapTransport k8s.WrapTransport) (
 	return fmt.Sprintf("%#v", *serverVersion), nil
 }
 
-func RebuildState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, oldState RKEState) (RKEState, error) {
-	var newState RKEState
-	if oldState.CertificatesBundle == nil {
+func RebuildState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, oldState *RKEFullState) (*RKEFullState, error) {
+	newState := &RKEFullState{
+		DesiredState: RKEState{
+			RancherKubernetesEngineConfig: rkeConfig,
+		},
+	}
+	// Rebuilding the certificates of the desired state
+	if oldState.DesiredState.CertificatesBundle == nil {
 		// Get the certificate Bundle
 		certBundle, err := pki.GenerateRKECerts(ctx, *rkeConfig, "", "")
 		if err != nil {
-			return newState, fmt.Errorf("Failed to generate certificate bundle: %v", err)
+			return nil, fmt.Errorf("Failed to generate certificate bundle: %v", err)
 		}
 		// Convert rke certs to v3.certs
-		newState.CertificatesBundle = TransformCertsToV3Certs(certBundle)
+		newState.DesiredState.CertificatesBundle = TransformCertsToV3Certs(certBundle)
 	} else {
-		newState.CertificatesBundle = oldState.CertificatesBundle
+		// Regenerating etcd certificates for any new etcd nodes
+		pkiCertBundle := TransformV3CertsToCerts(oldState.DesiredState.CertificatesBundle)
+		if err := pki.GenerateEtcdCertificates(ctx, pkiCertBundle, *rkeConfig, "", ""); err != nil {
+			return nil, err
+		}
+		// Regenerating kubeapi certificates for any new kubeapi nodes
+		if err := pki.GenerateKubeAPICertificate(ctx, pkiCertBundle, *rkeConfig, "", ""); err != nil {
+			return nil, err
+		}
+		newState.DesiredState.CertificatesBundle = TransformCertsToV3Certs(pkiCertBundle)
 	}
-	newState.RancherKubernetesEngineConfig = rkeConfig
-
+	newState.CurrentState = oldState.CurrentState
 	return newState, nil
 }
 
