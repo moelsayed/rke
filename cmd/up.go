@@ -154,6 +154,12 @@ func ClusterUp(
 	// clientKey = string(cert.EncodePrivateKeyPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Key))
 	// caCrt = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.CACertName].Certificate))
 
+	// moved deploying certs before reconcile to remove all unneeded certs generation from reconcile
+	err = kubeCluster.SetUpHosts(ctx, false)
+	if err != nil {
+		return APIURL, caCrt, clientCert, clientKey, nil, err
+	}
+
 	err = cluster.ReconcileCluster(ctx, kubeCluster, currentCluster, updateOnly)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
@@ -161,11 +167,6 @@ func ClusterUp(
 	// update APIURL after reconcile
 	if len(kubeCluster.ControlPlaneHosts) > 0 {
 		APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
-	}
-
-	err = kubeCluster.SetUpHosts(ctx, false)
-	if err != nil {
-		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
 
 	if err := kubeCluster.PrePullK8sImages(ctx); err != nil {

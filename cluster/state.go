@@ -410,7 +410,7 @@ func (s *RKEFullState) WriteStateFile(ctx context.Context, statePath string) err
 		return fmt.Errorf("Failed to Marshal state object: %v", err)
 	}
 	logrus.Debugf("Writing state file: %s", stateFile)
-	if err := ioutil.WriteFile(statePath, []byte(stateFile), 0640); err != nil {
+	if err := ioutil.WriteFile(statePath, stateFile, 0640); err != nil {
 		return fmt.Errorf("Failed to write state file: %v", err)
 	}
 	log.Infof(ctx, "Successfully Deployed state file at [%s]", statePath)
@@ -442,10 +442,19 @@ func ReadStateFile(ctx context.Context, statePath string) (*RKEFullState, error)
 	defer file.Close()
 	buf, err := ioutil.ReadAll(file)
 	if err != nil {
-		return rkeFullState, fmt.Errorf("failed to read file: %v", err)
+		return rkeFullState, fmt.Errorf("failed to read state file: %v", err)
 	}
 	if err := json.Unmarshal(buf, rkeFullState); err != nil {
 		return rkeFullState, fmt.Errorf("failed to unmarshal the state file: %v", err)
 	}
 	return rkeFullState, nil
+}
+
+func RemoveStateFile(ctx context.Context, statePath string) {
+	log.Infof(ctx, "Removing state file: %s", statePath)
+	if err := os.Remove(statePath); err != nil {
+		logrus.Warningf("Failed to remove state file: %v", err)
+		return
+	}
+	log.Infof(ctx, "State file removed successfully")
 }
