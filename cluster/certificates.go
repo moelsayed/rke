@@ -21,10 +21,6 @@ import (
 
 func NewSetUpAuthentication(ctx context.Context, kubeCluster, currentCluster *Cluster, fullState *RKEFullState) error {
 	if kubeCluster.Authentication.Strategy == X509AuthenticationProvider {
-		if currentCluster != nil {
-			kubeCluster.Certificates = currentCluster.Certificates
-			return nil
-		}
 		kubeCluster.Certificates = TransformV3CertsToCerts(fullState.DesiredState.CertificatesBundle)
 		return nil
 	}
