@@ -84,6 +84,11 @@ func RotateRKECertificates(
 	local bool, configDir string, components []string, rotateCACerts bool) error {
 
 	log.Infof(ctx, "Rotating Kubernetes cluster certificates")
+	clusterState, err := cluster.ReadStateFile(ctx, cluster.GetStateFilePath(clusterFilePath, configDir))
+	if err != nil {
+		return err
+	}
+
 	kubeCluster, err := cluster.InitClusterObject(ctx, rkeConfig, clusterFilePath, configDir)
 	if err != nil {
 		return err
@@ -96,12 +101,12 @@ func RotateRKECertificates(
 		return err
 	}
 
-	currentCluster, err := kubeCluster.GetClusterState(ctx)
+	currentCluster, err := kubeCluster.GetClusterState(ctx, clusterState, configDir)
 	if err != nil {
 		return err
 	}
 
-	if err := cluster.SetUpAuthentication(ctx, kubeCluster, currentCluster); err != nil {
+	if err := cluster.SetUpAuthentication(ctx, kubeCluster, currentCluster, clusterState); err != nil {
 		return err
 	}
 
