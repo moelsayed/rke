@@ -339,6 +339,9 @@ func (s *RKEFullState) WriteStateFile(ctx context.Context, statePath string) err
 }
 
 func GetStateFilePath(configPath, configDir string) string {
+	if configPath == "" {
+		configPath = pki.ClusterConfig
+	}
 	baseDir := filepath.Dir(configPath)
 	if len(configDir) > 0 {
 		baseDir = filepath.Dir(configDir)
