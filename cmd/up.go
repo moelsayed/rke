@@ -74,7 +74,7 @@ func ClusterInit(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfi
 		return err
 	}
 
-	fullState, err := cluster.RebuildState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState)
+	fullState, err := cluster.RebuildState(ctx, &kubeCluster.RancherKubernetesEngineConfig, rkeFullState, clusterFilePath, configDir)
 	if err != nil {
 		return err
 	}
@@ -102,10 +102,12 @@ func ClusterUp(
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
-	kubeCluster, err := cluster.InitClusterObject(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig, clusterFilePath, configDir)
+
+	kubeCluster, err := cluster.InitClusterObject(ctx, clusterState.DesiredState.RancherKubernetesEngineConfig.DeepCopy(), clusterFilePath, configDir)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
+
 	err = kubeCluster.SetupDialers(ctx, dockerDialerFactory, localConnDialerFactory, k8sWrapTransport)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
@@ -116,43 +118,21 @@ func ClusterUp(
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
 
-	// 1. fix the kube config if it's broken
-	// 2. connect to k8s
-	// 3. get the state from k8s
-	// 4. if not on k8s we get it from the nodes.
-	// 5. get cluster certificates
-	// 6. update etcd hosts certs
-	// 7. set cluster defaults
-	// 8. regenerate api certificates
-	currentCluster, err := kubeCluster.NewGetClusterState(ctx, clusterState, configDir)
+	currentCluster, err := kubeCluster.GetClusterState(ctx, clusterState, configDir)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
+
 	if !disablePortCheck {
 		if err = kubeCluster.CheckClusterPorts(ctx, currentCluster); err != nil {
 			return APIURL, caCrt, clientCert, clientKey, nil, err
 		}
 	}
 
-	// 0. check on the auth strategy
-	// 1. if current cluster != nil copy over certs to kubeCluster
-	// 1.1. if there is no pki.RequestHeaderCACertName, generate it
-	// 2. fi there is no current_cluster try to fetch backup
-	// 2.1 if you found backup, handle weird fucking cases
-	// 3. if you don't find backup, generate new certs!
-	// 4. deploy backups
-	// This looks very weird now..
-	err = cluster.NewSetUpAuthentication(ctx, kubeCluster, currentCluster, clusterState)
+	err = cluster.SetUpAuthentication(ctx, kubeCluster, currentCluster, clusterState)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
-
-	// if len(kubeCluster.ControlPlaneHosts) > 0 {
-	// 	APIURL = fmt.Sprintf("https://" + kubeCluster.ControlPlaneHosts[0].Address + ":6443")
-	// }
-	// clientCert = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Certificate))
-	// clientKey = string(cert.EncodePrivateKeyPEM(kubeCluster.Certificates[pki.KubeAdminCertName].Key))
-	// caCrt = string(cert.EncodeCertPEM(kubeCluster.Certificates[pki.CACertName].Certificate))
 
 	// moved deploying certs before reconcile to remove all unneeded certs generation from reconcile
 	err = kubeCluster.SetUpHosts(ctx, false)
@@ -184,9 +164,6 @@ func ClusterUp(
 		return APIURL, caCrt, clientCert, clientKey, nil, err
 	}
 
-	// 1. save cluster certificates
-	// 2. save cluster state
-	//err = kubeCluster.SaveClusterState(ctx, &kubeCluster.RancherKubernetesEngineConfig)
 	err = kubeCluster.UpdateClusterState(ctx, clusterState)
 	if err != nil {
 		return APIURL, caCrt, clientCert, clientKey, nil, err

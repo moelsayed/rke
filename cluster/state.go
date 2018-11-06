@@ -42,12 +42,8 @@ type RKEState struct {
 
 // UpdateClusterState will update the cluster's current state
 func (c *Cluster) UpdateClusterState(ctx context.Context, fullState *RKEFullState) error {
-	// there is no need for this as we only match the current with the desired
-	// fullState, err := RebuildState(ctx, &c.RancherKubernetesEngineConfig, fullState)
-	// if err != nil {
-	// 	return err
-	// }
-	fullState.CurrentState = fullState.DesiredState
+	fullState.CurrentState.RancherKubernetesEngineConfig = c.RancherKubernetesEngineConfig.DeepCopy()
+	fullState.CurrentState.CertificatesBundle = TransformCertsToV3Certs(c.Certificates)
 	return fullState.WriteStateFile(ctx, c.StateFilePath)
 }
 
@@ -123,13 +119,11 @@ func TransformCertsToV3Certs(in map[string]pki.CertificatePKI) map[string]v3.Cer
 	}
 	return out
 }
-func (c *Cluster) NewGetClusterState(ctx context.Context, fullState *RKEFullState, configDir string) (*Cluster, error) {
+func (c *Cluster) GetClusterState(ctx context.Context, fullState *RKEFullState, configDir string) (*Cluster, error) {
 	var err error
-	// no current state, take me home
 	if fullState.CurrentState.RancherKubernetesEngineConfig == nil {
 		return nil, nil
 	}
-	// Do I still need to check and fix kube config ?
 
 	currentCluster, err := InitClusterObject(ctx, fullState.CurrentState.RancherKubernetesEngineConfig, c.ConfigPath, configDir)
 	if err != nil {
@@ -165,84 +159,6 @@ func (c *Cluster) NewGetClusterState(ctx context.Context, fullState *RKEFullStat
 
 	currentCluster.setClusterDefaults(ctx)
 
-	return currentCluster, nil
-}
-
-func (c *Cluster) GetClusterState(ctx context.Context) (*Cluster, error) {
-	var err error
-	var currentCluster *Cluster
-
-	// check if local kubeconfig file exists
-	if _, err = os.Stat(c.LocalKubeConfigPath); !os.IsNotExist(err) {
-		log.Infof(ctx, "[state] Found local kube config file, trying to get state from cluster")
-
-		// to handle if current local admin is down and we need to use new cp from the list
-		if !isLocalConfigWorking(ctx, c.LocalKubeConfigPath, c.K8sWrapTransport) {
-			if err := rebuildLocalAdminConfig(ctx, c); err != nil {
-				return nil, err
-			}
-		}
-
-		// initiate kubernetes client
-		c.KubeClient, err = k8s.NewClient(c.LocalKubeConfigPath, c.K8sWrapTransport)
-		if err != nil {
-			log.Warnf(ctx, "Failed to initiate new Kubernetes Client: %v", err)
-			return nil, nil
-		}
-		// Get previous kubernetes state
-		currentCluster, err = getStateFromKubernetes(ctx, c.KubeClient, c.LocalKubeConfigPath)
-		if err != nil {
-			// attempting to fetch state from nodes
-			uniqueHosts := hosts.GetUniqueHostList(c.EtcdHosts, c.ControlPlaneHosts, c.WorkerHosts)
-			currentCluster = getStateFromNodes(ctx, uniqueHosts, c.SystemImages.Alpine, c.PrivateRegistriesMap)
-		}
-		// Get previous kubernetes certificates
-		if currentCluster != nil {
-			if err := currentCluster.InvertIndexHosts(); err != nil {
-				return nil, fmt.Errorf("Failed to classify hosts from fetched cluster: %v", err)
-			}
-			activeEtcdHosts := currentCluster.EtcdHosts
-			for _, inactiveHost := range c.InactiveHosts {
-				activeEtcdHosts = removeFromHosts(inactiveHost, activeEtcdHosts)
-			}
-			currentCluster.Certificates, err = getClusterCerts(ctx, c.KubeClient, activeEtcdHosts)
-			// if getting certificates from k8s failed then we attempt to fetch the backup certs
-			if err != nil {
-				backupHosts := hosts.GetUniqueHostList(c.EtcdHosts, c.ControlPlaneHosts, nil)
-				currentCluster.Certificates, err = fetchBackupCertificates(ctx, backupHosts, c)
-				if err != nil {
-					return nil, fmt.Errorf("Failed to Get Kubernetes certificates: %v", err)
-				}
-				if currentCluster.Certificates != nil {
-					log.Infof(ctx, "[certificates] Certificate backup found on backup hosts")
-				}
-			}
-			currentCluster.DockerDialerFactory = c.DockerDialerFactory
-			currentCluster.LocalConnDialerFactory = c.LocalConnDialerFactory
-
-			// make sure I have all the etcd certs, We need handle dialer failure for etcd nodes https://github.com/rancher/rancher/issues/12898
-			for _, host := range activeEtcdHosts {
-				certName := pki.GetEtcdCrtName(host.InternalAddress)
-				if (currentCluster.Certificates[certName] == pki.CertificatePKI{}) {
-					if currentCluster.Certificates, err = pki.RegenerateEtcdCertificate(ctx,
-						currentCluster.Certificates,
-						host,
-						activeEtcdHosts,
-						currentCluster.ClusterDomain,
-						currentCluster.KubernetesServiceIP); err != nil {
-						return nil, err
-					}
-				}
-			}
-			// setting cluster defaults for the fetched cluster as well
-			currentCluster.setClusterDefaults(ctx)
-
-			currentCluster.Certificates, err = regenerateAPICertificate(c, currentCluster.Certificates)
-			if err != nil {
-				return nil, fmt.Errorf("Failed to regenerate KubeAPI certificate %v", err)
-			}
-		}
-	}
 	return currentCluster, nil
 }
 
@@ -373,12 +289,13 @@ func GetK8sVersion(localConfigPath string, k8sWrapTransport k8s.WrapTransport) (
 	return fmt.Sprintf("%#v", *serverVersion), nil
 }
 
-func RebuildState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, oldState *RKEFullState) (*RKEFullState, error) {
+func RebuildState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConfig, oldState *RKEFullState, configPath, configDir string) (*RKEFullState, error) {
 	newState := &RKEFullState{
 		DesiredState: RKEState{
-			RancherKubernetesEngineConfig: rkeConfig,
+			RancherKubernetesEngineConfig: rkeConfig.DeepCopy(),
 		},
 	}
+
 	// Rebuilding the certificates of the desired state
 	if oldState.DesiredState.CertificatesBundle == nil {
 		// Get the certificate Bundle
@@ -396,6 +313,10 @@ func RebuildState(ctx context.Context, rkeConfig *v3.RancherKubernetesEngineConf
 		}
 		// Regenerating kubeapi certificates for any new kubeapi nodes
 		if err := pki.GenerateKubeAPICertificate(ctx, pkiCertBundle, *rkeConfig, "", ""); err != nil {
+			return nil, err
+		}
+		// Regenerating kubeadmin certificates/config
+		if err := pki.GenerateKubeAdminCertificate(ctx, pkiCertBundle, *rkeConfig, configPath, configDir); err != nil {
 			return nil, err
 		}
 		newState.DesiredState.CertificatesBundle = TransformCertsToV3Certs(pkiCertBundle)
