@@ -150,12 +150,15 @@ func InitClusterObject(ctx context.Context, rkeConfig *v3.RancherKubernetesEngin
 		RancherKubernetesEngineConfig: *rkeConfig,
 		ConfigPath:                    clusterFilePath,
 		StateFilePath:                 GetStateFilePath(clusterFilePath, configDir),
-		LocalKubeConfigPath:           pki.GetLocalKubeConfig(clusterFilePath, configDir),
 		PrivateRegistriesMap:          make(map[string]v3.PrivateRegistry),
 	}
 	if len(c.ConfigPath) == 0 {
 		c.ConfigPath = pki.ClusterConfig
 	}
+	// set kube_config and state file
+	c.LocalKubeConfigPath = pki.GetLocalKubeConfig(c.ConfigPath, configDir)
+	c.StateFilePath = GetStateFilePath(c.ConfigPath, configDir)
+
 	// Setting cluster Defaults
 	c.setClusterDefaults(ctx)
 	// extract cluster network configuration
