@@ -29,7 +29,7 @@ func resolveClusterFile(ctx *cli.Context) (string, string, error) {
 	}
 	file, err := os.Open(fp)
 	if err != nil {
-		return "", "", fmt.Errorf("Can not find cluster configuration file: %v", err)
+		return "", "", fmt.Errorf("can not find cluster configuration file: %v", err)
 	}
 	defer file.Close()
 	buf, err := ioutil.ReadAll(file)
@@ -50,5 +50,37 @@ func setOptionsFromCLI(c *cli.Context, rkeConfig *v3.RancherKubernetesEngineConf
 		rkeConfig.IgnoreDockerVersion = c.Bool("ignore-docker-version")
 	}
 
+	if c.Bool("s3") {
+		if rkeConfig.Services.Etcd.BackupBackend == nil {
+			rkeConfig.Services.Etcd.BackupBackend = &v3.BackupBackend{}
+		}
+		rkeConfig.Services.Etcd.BackupBackend.S3BackupBackend = setS3OptionsFromCLI(c)
+	}
+
 	return rkeConfig, nil
+}
+
+func setS3OptionsFromCLI(c *cli.Context) *v3.S3BackupBackend {
+	endpoint := c.String("s3-endpoint")
+	accessKey := c.String("access-key")
+	secretKey := c.String("secret-key")
+	bucketName := c.String("bucket-name")
+	region := c.String("region")
+	var s3BackupBackend = &v3.S3BackupBackend{}
+	if len(endpoint) != 0 {
+		s3BackupBackend.Endpoint = endpoint
+	}
+	if len(accessKey) != 0 {
+		s3BackupBackend.AccessKeyID = accessKey
+	}
+	if len(secretKey) != 0 {
+		s3BackupBackend.SecretAccesssKey = secretKey
+	}
+	if len(bucketName) != 0 {
+		s3BackupBackend.BucketName = bucketName
+	}
+	if len(region) != 0 {
+		s3BackupBackend.Region = region
+	}
+	return s3BackupBackend
 }

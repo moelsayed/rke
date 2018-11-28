@@ -10,7 +10,7 @@ import (
 
 func (c *Cluster) SnapshotEtcd(ctx context.Context, snapshotName string) error {
 	for _, host := range c.EtcdHosts {
-		if err := services.RunEtcdSnapshotSave(ctx, host, c.PrivateRegistriesMap, c.SystemImages.Alpine, c.Services.Etcd.Creation, c.Services.Etcd.Retention, snapshotName, true); err != nil {
+		if err := services.RunEtcdSnapshotSave(ctx, host, c.PrivateRegistriesMap, c.SystemImages.Alpine, snapshotName, true, c.Services.Etcd); err != nil {
 			return err
 		}
 	}
@@ -21,6 +21,16 @@ func (c *Cluster) RestoreEtcdSnapshot(ctx context.Context, snapshotPath string) 
 	if isEqual := c.etcdSnapshotChecksum(ctx, snapshotPath); !isEqual {
 		return fmt.Errorf("etcd snapshots are not consistent")
 	}
+
+	// get etcd snapshots from s3 if backup backend server is set
+	if c.Services.Etcd.BackupBackend != nil && c.Services.Etcd.BackupBackend.S3BackupBackend != nil {
+		for _, host := range c.EtcdHosts {
+			if err := services.DownloadEtcdSnapshot(ctx, host, c.PrivateRegistriesMap, c.SystemImages.Alpine, snapshotPath, true, c.Services.Etcd); err != nil {
+				return err
+			}
+		}
+	}
+
 	// Start restore process on all etcd hosts
 	initCluster := services.GetEtcdInitialCluster(c.EtcdHosts)
 	for _, host := range c.EtcdHosts {
