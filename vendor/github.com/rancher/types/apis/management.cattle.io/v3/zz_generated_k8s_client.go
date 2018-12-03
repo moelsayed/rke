@@ -60,6 +60,10 @@ type Interface interface {
 	ProjectCatalogsGetter
 	ClusterCatalogsGetter
 	MultiClusterAppsGetter
+	GlobalDNSsGetter
+	GlobalDNSProvidersGetter
+	KontainerDriversGetter
+	EtcdBackupsGetter
 }
 
 type Clients struct {
@@ -103,6 +107,10 @@ type Clients struct {
 	ProjectCatalog                          ProjectCatalogClient
 	ClusterCatalog                          ClusterCatalogClient
 	MultiClusterApp                         MultiClusterAppClient
+	GlobalDNS                               GlobalDNSClient
+	GlobalDNSProvider                       GlobalDNSProviderClient
+	KontainerDriver                         KontainerDriverClient
+	EtcdBackup                              EtcdBackupClient
 }
 
 type Client struct {
@@ -150,6 +158,10 @@ type Client struct {
 	projectCatalogControllers                          map[string]ProjectCatalogController
 	clusterCatalogControllers                          map[string]ClusterCatalogController
 	multiClusterAppControllers                         map[string]MultiClusterAppController
+	globalDnsControllers                               map[string]GlobalDNSController
+	globalDnsProviderControllers                       map[string]GlobalDNSProviderController
+	kontainerDriverControllers                         map[string]KontainerDriverController
+	etcdBackupControllers                              map[string]EtcdBackupController
 }
 
 func Factory(ctx context.Context, config rest.Config) (context.Context, controller.Starter, error) {
@@ -304,6 +316,18 @@ func NewClientsFromInterface(iface Interface) *Clients {
 		MultiClusterApp: &multiClusterAppClient2{
 			iface: iface.MultiClusterApps(""),
 		},
+		GlobalDNS: &globalDnsClient2{
+			iface: iface.GlobalDNSs(""),
+		},
+		GlobalDNSProvider: &globalDnsProviderClient2{
+			iface: iface.GlobalDNSProviders(""),
+		},
+		KontainerDriver: &kontainerDriverClient2{
+			iface: iface.KontainerDrivers(""),
+		},
+		EtcdBackup: &etcdBackupClient2{
+			iface: iface.EtcdBackups(""),
+		},
 	}
 }
 
@@ -360,6 +384,10 @@ func NewForConfig(config rest.Config) (Interface, error) {
 		projectCatalogControllers:                          map[string]ProjectCatalogController{},
 		clusterCatalogControllers:                          map[string]ClusterCatalogController{},
 		multiClusterAppControllers:                         map[string]MultiClusterAppController{},
+		globalDnsControllers:                               map[string]GlobalDNSController{},
+		globalDnsProviderControllers:                       map[string]GlobalDNSProviderController{},
+		kontainerDriverControllers:                         map[string]KontainerDriverController{},
+		etcdBackupControllers:                              map[string]EtcdBackupController{},
 	}, nil
 }
 
@@ -889,6 +917,58 @@ type MultiClusterAppsGetter interface {
 func (c *Client) MultiClusterApps(namespace string) MultiClusterAppInterface {
 	objectClient := objectclient.NewObjectClient(namespace, c.restClient, &MultiClusterAppResource, MultiClusterAppGroupVersionKind, multiClusterAppFactory{})
 	return &multiClusterAppClient{
+		ns:           namespace,
+		client:       c,
+		objectClient: objectClient,
+	}
+}
+
+type GlobalDNSsGetter interface {
+	GlobalDNSs(namespace string) GlobalDNSInterface
+}
+
+func (c *Client) GlobalDNSs(namespace string) GlobalDNSInterface {
+	objectClient := objectclient.NewObjectClient(namespace, c.restClient, &GlobalDNSResource, GlobalDNSGroupVersionKind, globalDnsFactory{})
+	return &globalDnsClient{
+		ns:           namespace,
+		client:       c,
+		objectClient: objectClient,
+	}
+}
+
+type GlobalDNSProvidersGetter interface {
+	GlobalDNSProviders(namespace string) GlobalDNSProviderInterface
+}
+
+func (c *Client) GlobalDNSProviders(namespace string) GlobalDNSProviderInterface {
+	objectClient := objectclient.NewObjectClient(namespace, c.restClient, &GlobalDNSProviderResource, GlobalDNSProviderGroupVersionKind, globalDnsProviderFactory{})
+	return &globalDnsProviderClient{
+		ns:           namespace,
+		client:       c,
+		objectClient: objectClient,
+	}
+}
+
+type KontainerDriversGetter interface {
+	KontainerDrivers(namespace string) KontainerDriverInterface
+}
+
+func (c *Client) KontainerDrivers(namespace string) KontainerDriverInterface {
+	objectClient := objectclient.NewObjectClient(namespace, c.restClient, &KontainerDriverResource, KontainerDriverGroupVersionKind, kontainerDriverFactory{})
+	return &kontainerDriverClient{
+		ns:           namespace,
+		client:       c,
+		objectClient: objectClient,
+	}
+}
+
+type EtcdBackupsGetter interface {
+	EtcdBackups(namespace string) EtcdBackupInterface
+}
+
+func (c *Client) EtcdBackups(namespace string) EtcdBackupInterface {
+	objectClient := objectclient.NewObjectClient(namespace, c.restClient, &EtcdBackupResource, EtcdBackupGroupVersionKind, etcdBackupFactory{})
+	return &etcdBackupClient{
 		ns:           namespace,
 		client:       c,
 		objectClient: objectClient,
