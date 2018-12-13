@@ -111,7 +111,7 @@ func validateServicesOptions(c *Cluster) error {
 		}
 	}
 
-	// validate etcd s3 backup backend configurations
+	// validate etcd s3 backup Target configurations
 	if err := validateEtcdBackupOptions(c); err != nil {
 		return err
 	}
@@ -120,21 +120,21 @@ func validateServicesOptions(c *Cluster) error {
 }
 
 func validateEtcdBackupOptions(c *Cluster) error {
-	if c.Services.Etcd.BackupBackend != nil {
-		if c.Services.Etcd.BackupBackend.S3BackupBackend == nil {
-			return fmt.Errorf("etcd backup is enabled but no s3 backend is specified")
+	if c.Services.Etcd.BackupTarget != nil {
+		if c.Services.Etcd.BackupTarget.S3BackupTarget == nil {
+			return fmt.Errorf("etcd backup is enabled but no s3 Target is specified")
 		}
-		if len(c.Services.Etcd.BackupBackend.S3BackupBackend.Endpoint) == 0 {
-			return fmt.Errorf("etcd s3 backup backend endpoint can't be empty")
+		if len(c.Services.Etcd.BackupTarget.S3BackupTarget.Endpoint) == 0 {
+			return fmt.Errorf("etcd s3 backup Target endpoint can't be empty")
 		}
-		if len(c.Services.Etcd.BackupBackend.S3BackupBackend.AccessKeyID) == 0 {
-			return fmt.Errorf("etcd s3 backup backend accessKey id can't be empty")
+		if len(c.Services.Etcd.BackupTarget.S3BackupTarget.AccessKey) == 0 {
+			return fmt.Errorf("etcd s3 backup Target accessKey id can't be empty")
 		}
-		if len(c.Services.Etcd.BackupBackend.S3BackupBackend.SecretAccesssKey) == 0 {
-			return fmt.Errorf("etcd s3 backup backend sercretAccessKey can't be empty")
+		if len(c.Services.Etcd.BackupTarget.S3BackupTarget.SecretKey) == 0 {
+			return fmt.Errorf("etcd s3 backup Target sercretAccessKey can't be empty")
 		}
-		if len(c.Services.Etcd.BackupBackend.S3BackupBackend.BucketName) == 0 {
-			return fmt.Errorf("etcd s3 backup backend bucketName can't be empty")
+		if len(c.Services.Etcd.BackupTarget.S3BackupTarget.BucketName) == 0 {
+			return fmt.Errorf("etcd s3 backup Target bucketName can't be empty")
 		}
 	}
 	return nil

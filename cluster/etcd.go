@@ -22,8 +22,8 @@ func (c *Cluster) RestoreEtcdSnapshot(ctx context.Context, snapshotPath string) 
 		return fmt.Errorf("etcd snapshots are not consistent")
 	}
 
-	// get etcd snapshots from s3 if backup backend server is set
-	if c.Services.Etcd.BackupBackend != nil && c.Services.Etcd.BackupBackend.S3BackupBackend != nil {
+	// get etcd snapshots from s3 if backup Target server is set
+	if c.Services.Etcd.BackupTarget != nil && c.Services.Etcd.BackupTarget.S3BackupTarget != nil {
 		for _, host := range c.EtcdHosts {
 			if err := services.DownloadEtcdSnapshot(ctx, host, c.PrivateRegistriesMap, c.SystemImages.Alpine, snapshotPath, true, c.Services.Etcd); err != nil {
 				return err

@@ -275,8 +275,8 @@ func RunEtcdSnapshotSave(ctx context.Context, etcdHost *hosts.Host, prsMap map[s
 		imageCfg.Cmd = append(imageCfg.Cmd, "--retention="+es.Retention)
 		imageCfg.Cmd = append(imageCfg.Cmd, "--creation="+es.Creation)
 	}
-	if es.BackupBackend != nil && es.BackupBackend.S3BackupBackend != nil {
-		imageCfg = configS3BackupImgCmd(ctx, imageCfg, es.BackupBackend.S3BackupBackend)
+	if es.BackupTarget != nil && es.BackupTarget.S3BackupTarget != nil {
+		imageCfg = configS3BackupImgCmd(ctx, imageCfg, es.BackupTarget.S3BackupTarget)
 	}
 
 	hostCfg := &container.HostConfig{
@@ -320,8 +320,8 @@ func RunEtcdSnapshotSave(ctx context.Context, etcdHost *hosts.Host, prsMap map[s
 
 func DownloadEtcdSnapshot(ctx context.Context, etcdHost *hosts.Host, prsMap map[string]v3.PrivateRegistry, etcdSnapshotImage string, name string, once bool, es v3.ETCDService) error {
 	log.Infof(ctx, "[etcd] Get snapshot [%s] on host [%s]", name, etcdHost.Address)
-	s3Backend := es.BackupBackend.S3BackupBackend
-	if len(s3Backend.Endpoint) == 0 || len(s3Backend.AccessKeyID) == 0 || len(s3Backend.SecretAccesssKey) == 0 || len(s3Backend.BucketName) == 0 {
+	s3Target := es.BackupTarget.S3BackupTarget
+	if len(s3Target.Endpoint) == 0 || len(s3Target.AccessKey) == 0 || len(s3Target.SecretKey) == 0 || len(s3Target.BucketName) == 0 {
 		log.Warnf(ctx, "[etcd] Failed to get snapshot [%s] from s3 on host [%s], invalid s3 configurations", name, etcdHost.Address)
 		return nil
 	}
@@ -335,7 +335,7 @@ func DownloadEtcdSnapshot(ctx context.Context, etcdHost *hosts.Host, prsMap map[
 		},
 		Image: etcdSnapshotImage,
 	}
-	imageCfg = configS3BackupImgCmd(ctx, imageCfg, s3Backend)
+	imageCfg = configS3BackupImgCmd(ctx, imageCfg, s3Target)
 
 	hostCfg := &container.HostConfig{
 		Binds: []string{
@@ -449,15 +449,15 @@ func GetEtcdSnapshotChecksum(ctx context.Context, etcdHost *hosts.Host, prsMap m
 	return checksum, nil
 }
 
-func configS3BackupImgCmd(ctx context.Context, imageCfg *container.Config, s3Backend *v3.S3BackupBackend) *container.Config {
-	log.Infof(ctx, "Invoking s3 backup server cmd config, bucketName:%s, endpoint:%s", s3Backend.BucketName, s3Backend.Endpoint)
+func configS3BackupImgCmd(ctx context.Context, imageCfg *container.Config, s3Target *v3.S3BackupTarget) *container.Config {
+	log.Infof(ctx, "Invoking s3 backup server cmd config, bucketName:%s, endpoint:%s", s3Target.BucketName, s3Target.Endpoint)
 	cmd := []string{
 		"--s3-backup=true",
-		"--s3-endpoint=" + s3Backend.Endpoint,
-		"--s3-accessKey=" + s3Backend.AccessKeyID,
-		"--s3-secretKey=" + s3Backend.SecretAccesssKey,
-		"--s3-bucketName=" + s3Backend.BucketName,
-		"--s3-region=" + s3Backend.Region,
+		"--s3-endpoint=" + s3Target.Endpoint,
+		"--s3-accessKey=" + s3Target.AccessKey,
+		"--s3-secretKey=" + s3Target.SecretKey,
+		"--s3-bucketName=" + s3Target.BucketName,
+		"--s3-region=" + s3Target.Region,
 	}
 	imageCfg.Cmd = append(imageCfg.Cmd, cmd...)
 	return imageCfg

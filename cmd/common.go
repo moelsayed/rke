@@ -51,36 +51,36 @@ func setOptionsFromCLI(c *cli.Context, rkeConfig *v3.RancherKubernetesEngineConf
 	}
 
 	if c.Bool("s3") {
-		if rkeConfig.Services.Etcd.BackupBackend == nil {
-			rkeConfig.Services.Etcd.BackupBackend = &v3.BackupBackend{}
+		if rkeConfig.Services.Etcd.BackupTarget == nil {
+			rkeConfig.Services.Etcd.BackupTarget = &v3.BackupTarget{}
 		}
-		rkeConfig.Services.Etcd.BackupBackend.S3BackupBackend = setS3OptionsFromCLI(c)
+		rkeConfig.Services.Etcd.BackupTarget.S3BackupTarget = setS3OptionsFromCLI(c)
 	}
 
 	return rkeConfig, nil
 }
 
-func setS3OptionsFromCLI(c *cli.Context) *v3.S3BackupBackend {
+func setS3OptionsFromCLI(c *cli.Context) *v3.S3BackupTarget {
 	endpoint := c.String("s3-endpoint")
 	accessKey := c.String("access-key")
 	secretKey := c.String("secret-key")
 	bucketName := c.String("bucket-name")
 	region := c.String("region")
-	var s3BackupBackend = &v3.S3BackupBackend{}
+	var s3BackupTarget = &v3.S3BackupTarget{}
 	if len(endpoint) != 0 {
-		s3BackupBackend.Endpoint = endpoint
+		s3BackupTarget.Endpoint = endpoint
 	}
 	if len(accessKey) != 0 {
-		s3BackupBackend.AccessKeyID = accessKey
+		s3BackupTarget.AccessKey = accessKey
 	}
 	if len(secretKey) != 0 {
-		s3BackupBackend.SecretAccesssKey = secretKey
+		s3BackupTarget.SecretKey = secretKey
 	}
 	if len(bucketName) != 0 {
-		s3BackupBackend.BucketName = bucketName
+		s3BackupTarget.BucketName = bucketName
 	}
 	if len(region) != 0 {
-		s3BackupBackend.Region = region
+		s3BackupTarget.Region = region
 	}
-	return s3BackupBackend
+	return s3BackupTarget
 }

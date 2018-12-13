@@ -8,22 +8,21 @@ import (
 )
 
 const (
-	BackupConditionCreated    condition.Cond = "Created"
-	BackupConditionCompeleted condition.Cond = "Compeleted"
+	BackupConditionCreated   condition.Cond = "Created"
+	BackupConditionCompleted condition.Cond = "Completed"
+	BackupConditionRestored  condition.Cond = "Restored"
 )
 
-type BackupBackend struct {
-	// backend name
-	Name string `yaml:"name" json:"name,omitempty" norman:"default=s3"`
-	// s3 backend
-	S3BackupBackend *S3BackupBackend `yaml:",omitempty" json:"s3BackupBackend"`
+type BackupTarget struct {
+	// s3 target
+	S3BackupTarget *S3BackupTarget `yaml:",omitempty" json:"s3BackupTarget"`
 }
 
-type S3BackupBackend struct {
+type S3BackupTarget struct {
 	// Access key ID
-	AccessKeyID string `yaml:"access_key_id" json:"accessKeyId,omitempty"`
+	AccessKey string `yaml:"access_key" json:"accessKey,omitempty"`
 	// Secret access key
-	SecretAccesssKey string `yaml:"secret_access_key" json:"secretAccessKey,omitempty"`
+	SecretKey string `yaml:"secret_key" json:"secretKey,omitempty" norman:"required,type=password" `
 	// name of the bucket to use for backup
 	BucketName string `yaml:"bucket_name" json:"bucketName,omitempty"`
 	// AWS Region, AWS spcific
@@ -31,25 +30,18 @@ type S3BackupBackend struct {
 	// Endpoint is used if this is not an AWS API
 	Endpoint string `yaml:"endpoint" json:"endpoint"`
 }
-
 type EtcdBackup struct {
 	types.Namespaced
 
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	ClusterID string `json:"clusterId,omitempty" norman:"required,type=reference[cluster]"`
+	// actual file name on the target
+	Filename string `yaml:"filename" json:"filename,omitempty"`
 	// s3 backup type
-	S3EtcdBackup *S3EtcdBackup `yaml:",omitempty" json:"s3EtcdBackup,omitempty"`
+	BackupTarget *BackupTarget `yaml:",omitempty" json:"backupTarget,omitempty"`
 	// backup status
 	Status EtcdBackupStatus `yaml:"status" json:"status,omitempty"`
-}
-
-type S3EtcdBackup struct {
-	// actual file name on the backend
-	FileName string `yaml:"file_name" json:"fileName,omitempty"`
-	// Backend configuration used for this backup
-	S3BackupBackend S3BackupBackend `yaml:",omitempty" json:"s3BackupBackend"`
 }
 
 type EtcdBackupStatus struct {
