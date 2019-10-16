@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
@@ -11,6 +12,7 @@ import (
 	"github.com/rancher/rke/pki/cert"
 
 	"github.com/docker/docker/api/types"
+	ghodssyaml "github.com/ghodss/yaml"
 	"github.com/rancher/rke/authz"
 	"github.com/rancher/rke/docker"
 	"github.com/rancher/rke/hosts"
@@ -24,8 +26,12 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
-
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apiserver/pkg/apis/config"
+	apiserverconfig "k8s.io/apiserver/pkg/apis/config"
+	apiserverconfigv1 "k8s.io/apiserver/pkg/apis/config/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/transport"
@@ -151,17 +157,79 @@ func (c *Cluster) DeployWorkerPlane(ctx context.Context, svcOptionData map[strin
 	}
 	return nil
 }
+func parseCustomConfig(customConfig map[string]interface{}) (*apiserverconfig.EncryptionConfiguration, error) {
+	var err error
+
+	data, err := json.Marshal(customConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling: %v", err)
+	}
+
+	scheme := runtime.NewScheme()
+	err = apiserverconfig.AddToScheme(scheme)
+	if err != nil {
+		return nil, fmt.Errorf("error adding to scheme: %v", err)
+	}
+	err = apiserverconfigv1.AddToScheme(scheme)
+	if err != nil {
+		return nil, fmt.Errorf("error adding to scheme: %v", err)
+	}
+	codecs := serializer.NewCodecFactory(scheme)
+	decoder := codecs.UniversalDecoder()
+	decodedObj, objType, err := decoder.Decode(data, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding data: %v", err)
+	}
+	decodedConfig, ok := decodedObj.(*apiserverconfig.EncryptionConfiguration)
+	if !ok {
+		return nil, fmt.Errorf("unexpected type: %T", objType)
+	}
+	return decodedConfig, nil
+}
+
+func before(clusterFile string) (string, *config.EncryptionConfiguration, error) {
+	var err error
+	var r map[string]interface{}
+	err = ghodssyaml.Unmarshal([]byte(clusterFile), &r)
+	if err != nil {
+		return clusterFile, nil, fmt.Errorf("error unmarshalling: %v", err)
+	}
+	services := r["services"].(map[string]interface{})
+	kubeapi := services["kube-api"].(map[string]interface{})
+	secrets_encryption_config := kubeapi["secrets_encryption_config"].(map[string]interface{})
+	custom_config := secrets_encryption_config["custom_config"].(map[string]interface{})
+
+	if custom_config != nil {
+		logrus.Infof("custom_config: %+v", custom_config)
+		delete(secrets_encryption_config, "custom_config")
+		newClusterFile, err := ghodssyaml.Marshal(r)
+		logrus.Infof("newClusterFile: %+v", string(newClusterFile))
+		c, err := parseCustomConfig(custom_config)
+		return string(newClusterFile), c, err
+	}
+
+	return clusterFile, nil, nil
+}
 
 func ParseConfig(clusterFile string) (*v3.RancherKubernetesEngineConfig, error) {
 	logrus.Debugf("Parsing cluster file [%v]", clusterFile)
 	var rkeConfig v3.RancherKubernetesEngineConfig
+	clusterFile, secretConfig, err := before(clusterFile)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := yaml.Unmarshal([]byte(clusterFile), &rkeConfig); err != nil {
 		return nil, err
 	}
+	if rkeConfig.Services.KubeAPI.SecretsEncryptionConfig.Enabled && secretConfig != nil {
+		rkeConfig.Services.KubeAPI.SecretsEncryptionConfig.CustomConfig = secretConfig
+	}
+	logrus.Infof("melsayed---------------%+v", rkeConfig.Services.KubeAPI.SecretsEncryptionConfig.CustomConfig)
 	// the customConfig is mapped to a k8s type, which doesn't unmarshal well because it has a
 	// nested struct and no yaml tags. Therefor, we have to re-parse it again and assign it correctly.
 	// this only affects rke cli. Since rkeConfig is passed from rancher directly in the rancher use case.
-	parseCustomEncryptionConfig(clusterFile, &rkeConfig)
+	// parseCustomEncryptionConfig(clusterFile, &rkeConfig)
 	return &rkeConfig, nil
 }
 

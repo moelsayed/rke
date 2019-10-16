@@ -20,7 +20,7 @@ import (
 	"github.com/rancher/types/apis/management.cattle.io/v3"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	apiserverconfig "k8s.io/apiserver/pkg/apis/config/v1"
+	apiserverconfig "k8s.io/apiserver/pkg/apis/config"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -303,7 +303,7 @@ func disabledProviderFileFromKey(keyList interface{}) (string, error) {
 func (c *Cluster) readEncryptionCustomConfig() (string, error) {
 	// directly marshalling apiserverconfig.EncryptionConfiguration to yaml breaks things because TypeMeta
 	// is nested and all fields don't have yaml tags. So we do this as a work around.
-	customConfig := v3.CustomEncryptionConfiguration{
+	customConfig := apiserverconfig.EncryptionConfiguration{
 		Resources: c.RancherKubernetesEngineConfig.Services.KubeAPI.SecretsEncryptionConfig.CustomConfig.Resources,
 	}
 	jsonConfig, err := json.Marshal(customConfig)
@@ -344,8 +344,8 @@ func parseCustomEncryptionConfig(clusterFile string, rkeConfig *v3.RancherKubern
 	if err != nil {
 		return fmt.Errorf("error marshalling: %v", err)
 	}
-	customConfig := &v3.CustomEncryptionConfiguration{}
-	if err = json.Unmarshal(jsonConfig, customConfig); err != nil {
+	customConfig := &apiserverconfig.EncryptionConfiguration{}
+	if err = json.Unmarshal(jsonConfig, customConfig.Resources); err != nil {
 		return fmt.Errorf("error unmarshalling secrets encryption custom config: %v", err)
 	}
 	rkeConfig.Services.KubeAPI.SecretsEncryptionConfig.CustomConfig = customConfig

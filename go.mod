@@ -21,6 +21,7 @@ require (
 	github.com/docker/distribution v2.7.1-0.20190205005809-0d3efadf0154+incompatible
 	github.com/docker/docker v0.7.3-0.20190808172531-150530564a14
 	github.com/docker/go-connections v0.3.0
+	github.com/ghodss/yaml v1.0.0
 	github.com/go-ini/ini v1.37.0
 	github.com/google/btree v1.0.0 // indirect
 	github.com/gorilla/mux v1.7.3 // indirect
@@ -31,7 +32,7 @@ require (
 	github.com/opencontainers/image-spec v0.0.0-20170929214853-7c889fafd04a // indirect
 	github.com/pkg/errors v0.8.1
 	github.com/rancher/kontainer-driver-metadata v0.0.0-20190930170218-cea47774d036
-	github.com/rancher/norman v0.0.0-20190930164704-e09204b63081
+	github.com/rancher/norman v0.0.0-20191003174345-0ac7dd6ccb36
 	github.com/rancher/types v0.0.0-20190930165650-6bbedae77a35
 	github.com/sirupsen/logrus v1.4.2
 	github.com/smartystreets/goconvey v0.0.0-20190731233626-505e41936337 // indirect
