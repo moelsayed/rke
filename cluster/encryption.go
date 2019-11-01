@@ -55,6 +55,13 @@ func ReconcileEncryptionProviderConfig(ctx context.Context, kubeCluster, current
 	if !kubeCluster.IsEncryptionEnabled() && !currentCluster.IsEncryptionEnabled() {
 		return nil
 	}
+	// encryption configuration updateded
+	if kubeCluster.IsEncryptionEnabled() && currentCluster.IsEncryptionEnabled() &&
+		kubeCluster.EncryptionConfig.EncryptionProviderFile != currentCluster.EncryptionConfig.EncryptionProviderFile {
+		kubeCluster.EncryptionConfig.RewriteSecrets = true
+
+		return services.RestartKubeAPIWithHealthcheck(ctx, kubeCluster.ControlPlaneHosts, kubeCluster.LocalConnDialerFactory, kubeCluster.Certificates)
+	}
 	// disable encryption
 	if !kubeCluster.IsEncryptionEnabled() && currentCluster.IsEncryptionEnabled() {
 		if currentCluster.IsEncryptionCustomConfig() {
